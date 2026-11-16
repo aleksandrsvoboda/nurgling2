@@ -1,6 +1,7 @@
 package nurgling.widgets;
 
 import haven.*;
+import nurgling.NConfig;
 import nurgling.NGameUI;
 import nurgling.NStyle;
 import nurgling.i18n.L10n;
@@ -143,6 +144,12 @@ public class LevelPlanWindow extends Window {
         y += curve.sz.y + GAP;
         stats = add(new Stats(W), 0, y);
         y += stats.sz.y + GAP;
+        /* One setting for every plan: their borders on the ground in the world. */
+        Widget wb = add(new CheckBox(L10n.get("level.world_border"))
+                .state(() -> !Boolean.FALSE.equals(NConfig.get(NConfig.Key.levelPlanWorldBorder)))
+                .set(a -> NConfig.set(NConfig.Key.levelPlanWorldBorder, a)), 0, y);
+        wb.settip(L10n.get("level.world_border_tip"));
+        y += wb.sz.y + GAP;
         lockBtn = add(new PillButton(L10n.get("level.lock"), false, this::toggleLock).minWidth(W), 0, y);
         lockBtn.settip(L10n.get("level.lock_tip"));
         unlockBtn = add(new PillButton(L10n.get("level.unlock"), false, this::toggleLock).minWidth(W), 0, y);

@@ -140,6 +140,7 @@ public class NConfig
         uniformBiomeColors,
         reliefMap,           // minimap/map window: shaded relief from the saved heights
         reliefStrength,      // relief shading strength, percent (100 = normal)
+        levelPlanWorldBorder, // leveling plans: draw each plan's border on the ground in the world
         inventoryRightPanelShow,
         craftUseStorage,     // craft window: autocraft may fetch inputs with no area from the Storage Items index
         inventoryRightPanelMode,
@@ -479,6 +480,7 @@ public class NConfig
         conf.put(Key.uniformBiomeColors, false);
         conf.put(Key.reliefMap, true);
         conf.put(Key.reliefStrength, 100);
+        conf.put(Key.levelPlanWorldBorder, true);
         conf.put(Key.inventoryRightPanelShow, false);
         conf.put(Key.craftUseStorage, false);
         conf.put(Key.inventoryRightPanelMode, "EXPANDED");

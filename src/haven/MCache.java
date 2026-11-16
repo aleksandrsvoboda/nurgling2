@@ -945,7 +945,8 @@ public class MCache implements MapSource {
 	public RenderTree.Node getnolcut(NOverlay nol, Coord cc) {
 		Integer id = nol.id;
 		boolean requpd = nol.requpdate2;
-		if((areas.get(id)!= null && areas.get(id).grids_id.contains(this.id)) || NMapView.isCustom(id))
+		if((areas.get(id)!= null && areas.get(id).grids_id.contains(this.id)) || NMapView.isCustom(id)
+		   || (nol instanceof nurgling.overlays.map.NLevelPlanOverlay))
 		{
 			Cut cut = geticut(cc);
 			// Fetch first: picking up a finished mesh bumps meshver.

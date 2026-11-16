@@ -882,6 +882,18 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         return null;
     }
 
+    /** The ground border of leveling plans; added once this world has a plan, so it costs nothing before. */
+    private void ensureLevelPlanOverlay()
+    {
+        if(nols.containsKey(nurgling.overlays.map.NLevelPlanOverlay.LEVEL_PLAN_OVERLAY))
+            return;
+        NGameUI gui = getparent(NGameUI.class);
+        if((gui == null) || (gui.levelPlans == null) || gui.levelPlans.plans().isEmpty())
+            return;
+        addCustomOverlay(nurgling.overlays.map.NLevelPlanOverlay.LEVEL_PLAN_OVERLAY,
+                         new nurgling.overlays.map.NLevelPlanOverlay(this, gui.levelPlans));
+    }
+
     public static boolean isCustom(Integer id)
     {
         if(id == MINING_OVERLAY)
@@ -1470,6 +1482,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     protected void oltick()
     {
         super.oltick();
+        ensureLevelPlanOverlay();
         java.util.Map<Long, MCache.Grid> grids = glob.map.gridsById();
         for(NOverlay ol : nols.values()) {
             ol.gridsById = grids;

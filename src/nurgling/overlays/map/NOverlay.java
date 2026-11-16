@@ -28,6 +28,12 @@ public class NOverlay extends MapView.MapRaster
         }
     };
 
+    /** For an overlay of a given map view, so it never picks up another session's map. */
+    protected NOverlay(Integer id, MapView mv) {
+        super(mv.glob.map, mv.view);
+        this.id = id;
+    }
+
     public NOverlay(Integer id) {
         super(NUtils.getGameUI().map.glob.map, NUtils.getGameUI().map.view);
         if(id>=0) {
