@@ -337,6 +337,11 @@ public class BotRegistry {
         bots.add(new BotDescriptor("navareatest", BotDescriptor.BotType.TOOLS, "Area Navigation Test", "Walks between reachable areas in several orders, plus areas that cannot be reached, which must fail cleanly. Log saved under nav_test/.", false, true, AreaNavigationTest.class, "test15", false,
                 Map.of("reachable", 5, "unavailable", 3, "maxCostTiles", 600, "seed", 20261114)));
         //bots.add(new BotDescriptor("testzonepatroller", BotDescriptor.BotType.UTILS, "Test Zone Patroller", "Patrols 15 test zones (test1-test15) every 30 minutes, returning to test16 between cycles.", true, true, TestZonePatroller.class, "worldexplorer", false));
+        // TOOLS - large fields (testing): farmers for fields bigger than the view, one per crop
+        for (Map.Entry<String, String> c : nurgling.actions.bots.largefields.LargeFieldFarmer.crops().entrySet())
+            bots.add(new BotDescriptor("lf_" + c.getKey(), BotDescriptor.BotType.TOOLS, "Large Field: " + c.getValue(),
+                    "Harvests and replants " + c.getValue() + " fields of any size, block by block, walking to the seed and put areas whenever the inventory fills. Uses the same areas as the regular " + c.getValue() + " farmer. Every " + c.getValue() + " crop area is farmed. Testing.",
+                    false, true, nurgling.actions.bots.largefields.LargeFieldFarmer.class, c.getKey(), false, Map.of("crop", c.getKey())));
         bots.add(new BotDescriptor("collect_silkworm_eggs_by_quality", BotDescriptor.BotType.TOOLS, "Collect Best Silkworm Eggs", "Collects highest quality silkworm eggs from containers in selected area. Considers individual egg quality within stacks.", false, true, CollectHighestQualitySilkwormEggs.class, "test35", false));
 
         // BOT MENU GROUPS: sub-headings inside each folder. Groups appear in the order they are
@@ -376,6 +381,10 @@ public class BotRegistry {
         group("storage", "chest", "lchest", "cupboard", "crate", "barrel", "stone_casket", "cellar");
         group("workstations", "kiln", "tarkilnb", "smoke_shed", "ttub", "dframe", "htable", "cheese_rack");
 
+        List<String> largeFields = new ArrayList<>();
+        for (String id : nurgling.actions.bots.largefields.LargeFieldFarmer.crops().keySet())
+            largeFields.add("lf_" + id);
+        group("large_fields", largeFields.toArray(new String[0]));
         group("tools", "chunknav_navigator", "test2", "collect_silkworm_eggs_by_quality");
         group("developer", "test1", "test4", "test5", "test7", "test8", "test9", "test12", "navstresstest");
     }
