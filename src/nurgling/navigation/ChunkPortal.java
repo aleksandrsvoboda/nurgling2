@@ -122,7 +122,8 @@ public class ChunkPortal {
         return lower.contains("stonemansion") || lower.contains("logcabin") ||
                lower.contains("timberhouse") || lower.contains("stonestead") ||
                lower.contains("greathall") || lower.contains("stonetower") ||
-               lower.contains("windmill") || lower.contains("primitivetent");
+               lower.contains("windmill") || lower.contains("primitivetent") ||
+               lower.contains("greenhouse") || lower.contains("thatchedhut");
     }
 
     public JSONObject toJson() {

@@ -93,7 +93,10 @@ public class PortalTraversalTracker {
         "stonestead",
         "greathall",
         "stonetower",
-        "windmill"
+        "windmill",
+        "primitivetent",
+        "greenhouse",
+        "thatchedhut"
     };
 
     public PortalTraversalTracker(ChunkNavGraph graph, ChunkNavRecorder recorder, ChunkNavManager manager) {
@@ -471,6 +474,9 @@ public class PortalTraversalTracker {
         if (lower.contains("greathall")) return 5;
         if (lower.contains("stonetower")) return 3;
         if (lower.contains("windmill")) return 3;
+        if (lower.contains("primitivetent")) return 3;
+        if (lower.contains("greenhouse")) return 3;
+        if (lower.contains("thatchedhut")) return 3;
 
         return 0; // Not a building, use direct position
     }

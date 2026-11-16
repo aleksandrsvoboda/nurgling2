@@ -303,7 +303,8 @@ public class ChunkNavExecutor implements Action {
                                    lower.contains("stonemansion") || lower.contains("logcabin") ||
                                    lower.contains("timberhouse") || lower.contains("stonestead") ||
                                    lower.contains("greathall") || lower.contains("stonetower") ||
-                                   lower.contains("windmill") || lower.contains("primitivetent");
+                                   lower.contains("windmill") || lower.contains("primitivetent") ||
+                                   lower.contains("greenhouse") || lower.contains("thatchedhut");
 
                 if (isPortal) {
                     double dist = player.rc.dist(gob.rc);
@@ -527,7 +528,9 @@ public class ChunkNavExecutor implements Action {
                lower.contains("greathall") ||
                lower.contains("stonetower") ||
                lower.contains("windmill") ||
-               lower.contains("primitivetent");
+               lower.contains("primitivetent") ||
+               lower.contains("greenhouse") ||
+               lower.contains("thatchedhut");
     }
 
     /**
@@ -1318,6 +1321,8 @@ public class ChunkNavExecutor implements Action {
         if (lower.contains("stonetower")) return 3;
         if (lower.contains("windmill")) return 2;
         if (lower.contains("primitivetent")) return 2;
+        if (lower.contains("greenhouse")) return 2;
+        if (lower.contains("thatchedhut")) return 2;
 
         // Mineholes also need an offset (like routes system does)
         if (lower.contains("minehole")) return 2;
