@@ -156,6 +156,7 @@ public class NConfig
         curioFinishedSound,
         milestones,          // MilestoneRegistry's persisted gobHash -> {location, destinations[]} map
         milestoneTracking,   // Whether MilestoneTracker passively records signpost/milestone travel
+        kinOnlineSound,      // Whether the "X is now online." kin message plays its chime
         roadTags,            // RoadTags' private per-post road labels shown in milestone windows
         tunnelingBot,        // TunnelingDialog's last choices (direction, support, sides, wings, road, ore stop)
         waypointRetryOnStuck,
@@ -492,6 +493,7 @@ public class NConfig
         conf.put(Key.curioFinishedSound, true);
         conf.put(Key.milestones, "");
         conf.put(Key.milestoneTracking, true);
+        conf.put(Key.kinOnlineSound, true);
         conf.put(Key.roadTags, "");
         conf.put(Key.tunnelingBot, "");
         conf.put(Key.waypointRetryOnStuck, true);
