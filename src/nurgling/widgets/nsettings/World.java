@@ -230,6 +230,16 @@ public class World extends Panel {
         boundingBoxes.a = tempSettings.showBB;
     }
 
+    /** Re-reads the object radius flags after their hotkeys changed them while this panel was open. */
+    public void syncObjectRadii() {
+        tempSettings.showBeehiveRadius = (Boolean) NConfig.get(NConfig.Key.showBeehiveRadius);
+        tempSettings.showTroughRadius = (Boolean) NConfig.get(NConfig.Key.showTroughRadius);
+        tempSettings.showMoundBedRadius = (Boolean) NConfig.get(NConfig.Key.showMoundBedRadius);
+        beehiveRadius.a = tempSettings.showBeehiveRadius;
+        troughRadius.a = tempSettings.showTroughRadius;
+        moundBedRadius.a = tempSettings.showMoundBedRadius;
+    }
+
     /** Re-reads the flat world setting after its hotkey changed it while this panel was open. */
     public void syncFlatSurface() {
         tempSettings.flatSurface = FlatWorld.isEnabled();
