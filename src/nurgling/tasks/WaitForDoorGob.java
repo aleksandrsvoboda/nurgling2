@@ -21,6 +21,8 @@ public class WaitForDoorGob extends NTask {
                 "gfx/terobjs/arch/stonetower",
                 "gfx/terobjs/arch/logcabin",
                 "gfx/terobjs/arch/timberhouse",
+                "gfx/terobjs/arch/greenhouse",
+                "gfx/terobjs/arch/thatchedhut",
                 "gfx/terobjs/arch/minehole",
                 "gfx/terobjs/arch/ladder",
                 "gfx/terobjs/arch/upstairs",

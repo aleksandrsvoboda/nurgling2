@@ -121,6 +121,8 @@ public class GateDetector {
                 "stonetower",
                 "logcabin",
                 "timberhouse",
+                "greenhouse",
+                "thatchedhut",
                 "minehole",
                 "ladder",
                 "stairs",
@@ -180,6 +182,8 @@ public class GateDetector {
                 {"gfx/terobjs/arch/stonetower-door", "gfx/terobjs/arch/stonetower"},
                 {"gfx/terobjs/arch/logcabin-door", "gfx/terobjs/arch/logcabin"},
                 {"gfx/terobjs/arch/timberhouse-door", "gfx/terobjs/arch/timberhouse"},
+                {"gfx/terobjs/arch/greenhouse-door", "gfx/terobjs/arch/greenhouse"},
+                {"gfx/terobjs/arch/thatchedhut-door", "gfx/terobjs/arch/thatchedhut"},
                 {"gfx/terobjs/minehole", "gfx/terobjs/ladder"},
                 {"gfx/terobjs/arch/upstairs", "gfx/terobjs/arch/downstairs"},
                 {"gfx/terobjs/arch/cellardoor", "gfx/terobjs/arch/cellarstairs"}

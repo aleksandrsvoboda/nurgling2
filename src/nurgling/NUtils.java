@@ -767,7 +767,7 @@ public class NUtils
     }
 
     public static void openDoor(NGameUI gui) throws InterruptedException {
-        Gob arch = Finder.findGob(player().rc, new NAlias("gfx/terobjs/arch/stonestead", "gfx/terobjs/arch/stonemansion", "gfx/terobjs/arch/greathall", "gfx/terobjs/arch/primitivetent", "gfx/terobjs/arch/windmill", "gfx/terobjs/arch/stonetower", "gfx/terobjs/arch/logcabin", "gfx/terobjs/arch/timberhouse", "gfx/terobjs/minehole", "gfx/terobjs/ladder"), null, 100);
+        Gob arch = Finder.findGob(player().rc, new NAlias("gfx/terobjs/arch/stonestead", "gfx/terobjs/arch/stonemansion", "gfx/terobjs/arch/greathall", "gfx/terobjs/arch/primitivetent", "gfx/terobjs/arch/windmill", "gfx/terobjs/arch/stonetower", "gfx/terobjs/arch/logcabin", "gfx/terobjs/arch/timberhouse", "gfx/terobjs/arch/greenhouse", "gfx/terobjs/arch/thatchedhut", "gfx/terobjs/minehole", "gfx/terobjs/ladder"), null, 100);
         if (arch != null) {
             if (NParser.checkName(arch.ngob.name, "gfx/terobjs/arch/greathall")) {
                 Coord2d A = new Coord2d(arch.ngob.hitBox.end.x, arch.ngob.hitBox.begin.y).rot(arch.a).add(arch.rc);

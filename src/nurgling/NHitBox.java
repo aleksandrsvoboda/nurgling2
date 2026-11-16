@@ -53,6 +53,8 @@ public class NHitBox
             put("gfx/terobjs/arch/timberhouse", new NHitBox(new Coord(-33,-33),new Coord(33,33)));
             put("gfx/terobjs/arch/stonetower", new NHitBox(new Coord(-39,-39),new Coord(39,39)));
             put("gfx/terobjs/arch/windmill", new NHitBox(new Coord(-28,-28),new Coord(28,28)));
+            // Its empty neg layer comes after the obst, so the derived box would be zero-sized.
+            put("gfx/terobjs/arch/greenhouse", new NHitBox(new Coord2d(-22,-16.5),new Coord2d(22,16.5)));
             put("gfx/terobjs/wonders/tarpit", new NHitBox(new Coord(-28,-28),new Coord(28,28)));
             put("gfx/terobjs/coronationstone", new NHitBox(new Coord(-30,-35),new Coord(41,35)));
             put("gfx/terobjs/arch/stonestead", new NHitBox(new Coord(-45,-28),new Coord(45,28)));
