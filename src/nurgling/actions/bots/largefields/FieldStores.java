@@ -71,6 +71,31 @@ final class FieldStores {
         return res;
     }
 
+    /** Whether the harvest drops this item on the ground at once, as HarvestCrop does with pile produce. */
+    boolean dropsOnHarvest(String name) {
+        return productNames(CropRegistry.StorageBehavior.STOCKPILE).contains(name);
+    }
+
+    /**
+     * What to pick up from a harvested block: the dropped produce (when it has somewhere to go)
+     * and the by-products with a put area. The produce is matched as the old farmers' collectors
+     * match it, by "items/&lt;plant&gt;", never its seeds or the crop's by-products.
+     */
+    List<NAlias> groundKinds(NGameUI gui) {
+        List<NAlias> res = new ArrayList<>();
+        if (!productNames(CropRegistry.StorageBehavior.STOCKPILE).isEmpty() && vegArea(gui) != null) {
+            String plant = crop.plant.getDefault();
+            ArrayList<String> exceptions = new ArrayList<>(java.util.Collections.singletonList("seed"));
+            for (LargeFieldCrop.ByProduct bp : crop.byProducts)
+                if (bp.alias != null)
+                    exceptions.addAll(bp.alias.keys);
+            res.add(new NAlias(new ArrayList<>(java.util.Collections.singletonList("items/" + plant.substring(plant.indexOf('/') + 1))), exceptions));
+        }
+        for (LargeFieldCrop.ByProduct bp : collectedByProducts(gui))
+            res.add(bp.alias);
+        return res;
+    }
+
     /** Why the run can't start, or null: pumpkin and watermelon need a put area for their pieces. */
     String missingRequired(NGameUI gui) {
         if (crop.whole != null && crop.whole.pieceRequired) {
@@ -160,8 +185,11 @@ final class FieldStores {
             NArea seed = seedArea();
             if (seed == null || !NUtils.navigateToArea(seed, true))
                 return "can't reach a seed area for " + crop.subtype;
+            java.util.ArrayList<Gob> barrels = Finder.findGobs(seed, new NAlias("barrel"));
+            if (barrels.isEmpty())
+                return "no barrel for seed in " + seed.name;
             for (String name : seeds) {
-                for (Gob barrel : Finder.findGobs(seed, new NAlias("barrel"))) {
+                for (Gob barrel : barrels) {
                     TransferToBarrel tb = new TransferToBarrel(barrel, name);
                     tb.run(gui);
                     if (!tb.isFull())

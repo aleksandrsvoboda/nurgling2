@@ -16,6 +16,7 @@ import nurgling.actions.Drink;
 import nurgling.actions.FillWaterskinsGlobal;
 import nurgling.actions.PathFinder;
 import nurgling.actions.SelectFlowerAction;
+import nurgling.actions.SetDir;
 import nurgling.areas.NArea;
 import nurgling.areas.NGlobalCoord;
 import nurgling.conf.CropRegistry;
@@ -30,22 +31,31 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static haven.OCache.posres;
 
 /**
- * Farming one block of a large field at a time: harvest, pick up the by-products, replant.
+ * One block of a large field at a time, worked the way the regular farmers work a whole field.
  *
- * Adapted from nurgling.actions.HarvestCrop and nurgling.actions.SeedCrop (regular path): the
- * same harvest stages, minimum harvest stage, planting sources and free-tile rule, but every
- * scan is limited to one block that the caller has walked to and waited for, so "nothing left"
- * is only ever decided while the whole block is in view. Fixes to those two classes should be
- * checked against this one.
+ * Harvest: a port of nurgling.actions.HarvestCrop's regular path - the same back-and-forth walk
+ * down 3-tile columns in 3x2 cells, the same stand-at-the-end-and-face-down-the-column trick,
+ * produce dropped on the ground as it comes, seeds taken to the barrels when the inventory is
+ * nearly full. After the block, what was dropped is picked up and stored before the next block.
+ *
+ * Planting: a port of nurgling.actions.SeedCrop's regular path - the same back-and-forth walk
+ * down 2-tile columns, planting 2x2 cells by area selection, run as a separate lap after the
+ * whole field is harvested.
+ *
+ * What differs from the originals: every scan is limited to one block that the caller has walked
+ * to and waited for, the storage is reached by walking there and back, every wait has a time
+ * limit, and a block is given up after a few passes instead of looping forever on a plant that
+ * won't go. Fixes to HarvestCrop/SeedCrop should be checked against this class.
  */
 final class FieldWork {
     private static final NAlias FALLOW = new NAlias("gfx/terobjs/plants/fallowplant");
     private static final NAlias MOUNDBED = new NAlias("gfx/terobjs/moundbed");
-    private static final int MIN_FREE = 3;
+    private static final int PASSES = 3;
 
     /** A kind of planting material, cheapest first: barrel seeds, then pile vegetables. */
     static final class Source {
@@ -103,7 +113,9 @@ final class FieldWork {
         return !sources.isEmpty();
     }
 
-    // ----- moving between blocks and stores -----
+    // ===================================================================================
+    // Moving between blocks and stores
+    // ===================================================================================
 
     /**
      * Walks into the block and waits until it is loaded. Tries the centre first (closest to every
@@ -143,19 +155,16 @@ final class FieldWork {
         return true;
     }
 
-    /** Unload trip; comes back to where it started. */
+    /** Unload trip in the middle of a block; comes back to where it started. */
     private boolean unloadTrip() throws InterruptedException {
         NGlobalCoord back = NUtils.bookmarkHere();
-        String err = stores.unload(gui);
-        if (err != null) {
-            error = err;
+        if (!store())
             return false;
-        }
         return returnTo(back);
     }
 
-    /** Unloads everything; the last trip of a field, no walk back. */
-    boolean finish() throws InterruptedException {
+    /** Takes everything of the harvest to storage, without walking back (end of a block or a lap). */
+    boolean store() throws InterruptedException {
         String err = stores.unload(gui);
         if (err != null) {
             error = err;
@@ -164,21 +173,11 @@ final class FieldWork {
         return true;
     }
 
-    /**
-     * Makes room in the inventory: drop by-products that have nowhere to go, then replant the
-     * tiles already harvested in this block with what is carried (seeds go into a barrel all or
-     * nothing, so unloading them would only mean fetching them straight back), and only then walk
-     * to the stores.
-     */
     private boolean ensureRoom(int free) throws InterruptedException {
         if (gui.getInventory().getFreeSpace() >= free)
             return true;
         stores.dropHomeless(gui);
-        if (gui.getInventory().getFreeSpace() >= free)
-            return true;
         stores.cutWhole(gui);
-        if (!seed(false))
-            return false;
         if (gui.getInventory().getFreeSpace() >= free)
             return true;
         if (!unloadTrip())
@@ -213,110 +212,318 @@ final class FieldWork {
         return returnTo(back);
     }
 
-    private Area session() {
-        return map.toSessionInclusive(block, gui.map.glob.map);
+    /** The block in session tiles, half-open, as NArea.getArea() gives a whole field; null when not loaded. */
+    private Area fieldArea() {
+        Area s = map.toSessionInclusive(block, gui.map.glob.map);
+        return (s == null) ? null : new Area(s.ul, s.br.add(1, 1));
     }
 
-    private boolean fromRight(Area s) {
-        return gui.map.player().rc.floor(MCache.tilesz).x > (s.ul.x + s.br.x) / 2;
+    private static Area inclusive(Area halfOpen) {
+        return new Area(halfOpen.ul, halfOpen.br.sub(1, 1));
     }
 
-    // ----- harvest -----
+    // ===================================================================================
+    // Harvest lap - port of HarvestCrop
+    // ===================================================================================
 
     private boolean stageAllowed(int stage) {
         return minStage == null || stage >= minStage;
     }
 
-    private Gob nextPlant(Area strip) {
-        List<Gob> cands = new ArrayList<>();
-        Set<Integer> stages = new HashSet<>();
+    private boolean anyLeft(Area fa) {
+        Area in = inclusive(fa);
         for (CropRegistry.CropStage cs : CropRegistry.getStages(crop.plant))
-            if (stageAllowed(cs.stage) && stages.add(cs.stage))
-                cands.addAll(Finder.findGobs(strip, crop.plant, cs.stage));
-        cands.addAll(Finder.findGobs(strip, FALLOW, 0));
-        Coord2d me = gui.map.player().rc;
-        Gob best = null;
-        for (Gob g : cands) {
-            if (skipped.contains(g.id))
-                continue;
-            if (best == null || g.rc.dist(me) < best.rc.dist(me))
-                best = g;
-        }
-        return best;
+            if (stageAllowed(cs.stage) && !unskipped(Finder.findGobs(in, crop.plant, cs.stage)).isEmpty())
+                return true;
+        return !unskipped(Finder.findGobs(in, FALLOW, 0)).isEmpty();
     }
 
-    /** Harvests every ripe plant of the block. */
+    private ArrayList<Gob> unskipped(ArrayList<Gob> gobs) {
+        gobs.removeIf(g -> skipped.contains(g.id));
+        return gobs;
+    }
+
+    /** Harvests the block: HarvestCrop's walk, limited to the block. */
     boolean harvest() throws InterruptedException {
-        Area s = session();
-        if (s == null)
-            return true;
-        for (Area strip : FieldGeometry.strips(new Area(s.ul, s.br.add(1, 1)), 3, fromRight(s))) {
-            Gob plant;
-            while ((plant = nextPlant(strip)) != null) {
-                if (!ensureRoom(MIN_FREE) || !stamina())
-                    return false;
-                // A trip may have taken a while; the plant can be gone or replaced since.
-                if (Finder.findGob(plant.id) == null)
-                    continue;
-                new PathFinder(plant).run(gui);
-                new SelectFlowerAction("Harvest", plant).run(gui);
-                FieldTasks.Gone gone = new FieldTasks.Gone(plant.id, 8000);
-                NUtils.getUI().core.addTask(gone);
-                if (gone.timedOut)
-                    skipped.add(plant.id);
-                if (gui.vhand != null) {
-                    if (gui.getInventory().getFreeSpace() > 0)
-                        NUtils.dropToInv();
-                    else
-                        NUtils.drop(gui.vhand);
+        for (int pass = 0; pass < PASSES; pass++) {
+            Area fa = fieldArea();
+            if (fa == null || !anyLeft(fa))
+                break;
+            if (!harvestPass(fa))
+                return false;
+        }
+        return dropOff(false);
+    }
+
+    private boolean harvestPass(Area fa) throws InterruptedException {
+        Coord2d me = gui.map.player().rc;
+        Coord start = me.dist(fa.br.mul(MCache.tilesz)) < me.dist(fa.ul.mul(MCache.tilesz)) ? fa.br.sub(1, 1) : fa.ul;
+        Coord pos = new Coord(start);
+        boolean rev = pos.equals(fa.ul);
+        boolean revdir = rev;
+
+        if (!rev) {
+            while (pos.x >= fa.ul.x) {
+                AtomicBoolean setDir = new AtomicBoolean(true);
+                if (revdir) {
+                    while (pos.y <= fa.br.y - 1) {
+                        Coord endPos = new Coord(Math.max(pos.x - 2, fa.ul.x), Math.min(pos.y + 1, fa.br.y - 1));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d plantGobEndpoint = harea.ul.mul(MCache.tilesz).add(MCache.tilesz.x + MCache.tilehsz.x, MCache.tilehsz.y).sub(0, MCache.tileqsz.y);
+                        Coord2d pathfinderEndpoint = harea.ul.sub(0, 1).mul(MCache.tilesz).add(MCache.tilesz.x + MCache.tilehsz.x, MCache.tilehsz.y + MCache.tileqsz.y);
+                        if (!harvestCell(harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir))
+                            return false;
+                        pos.y += 2;
+                    }
+                    pos.y = fa.br.y - 1;
+                } else {
+                    while (pos.y >= fa.ul.y) {
+                        Coord endPos = new Coord(Math.max(pos.x - 2, fa.ul.x), Math.max(pos.y - 1, fa.ul.y));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d plantGobEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y).sub(MCache.tilesz.x, 0).add(0, MCache.tileqsz.y);
+                        Coord2d pathfinderEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y).sub(MCache.tilesz.x, 0).add(0, MCache.tileqsz.y);
+                        if (!harvestCell(harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir))
+                            return false;
+                        pos.y -= 2;
+                    }
+                    pos.y = fa.ul.y;
                 }
+                revdir = !revdir;
+                pos.x -= 3;
+            }
+        } else {
+            while (pos.x <= fa.br.x - 1) {
+                AtomicBoolean setDir = new AtomicBoolean(true);
+                if (revdir) {
+                    while (pos.y <= fa.br.y - 1) {
+                        Coord endPos = new Coord(Math.min(pos.x + 2, fa.br.x - 1), Math.min(pos.y + 1, fa.br.y - 1));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d plantGobEndpoint = harea.ul.mul(MCache.tilesz).add(MCache.tilehsz.x + MCache.tilesz.x, MCache.tilehqsz.y + MCache.tileqsz.y);
+                        Coord2d pathfinderEndpoint = harea.ul.sub(0, 1).mul(MCache.tilesz).add(MCache.tilesz.x + MCache.tilehsz.x, MCache.tilehsz.y + MCache.tileqsz.y);
+                        if (!harvestCell(harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir))
+                            return false;
+                        pos.y += 2;
+                    }
+                    pos.y = fa.br.y - 1;
+                } else {
+                    while (pos.y >= fa.ul.y) {
+                        Coord endPos = new Coord(Math.min(pos.x + 2, fa.br.x - 1), Math.max(pos.y - 1, fa.ul.y));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d plantGobEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz).sub(MCache.tilesz.x, 0);
+                        Coord2d pathfinderEndpoint = harea.br.mul(MCache.tilesz).add(MCache.tilehsz).sub(MCache.tilesz.x, 0).add(0, MCache.tileqsz.y);
+                        if (!harvestCell(harea, revdir, pathfinderEndpoint, plantGobEndpoint, setDir))
+                            return false;
+                        pos.y -= 2;
+                    }
+                    pos.y = fa.ul.y;
+                }
+                revdir = !revdir;
+                pos.x += 3;
             }
         }
         return true;
     }
 
-    // ----- by-products left on the ground -----
+    /** HarvestCrop.harvest: the plant at the cell's end from the column end, then the rest of the cell. */
+    private boolean harvestCell(Area area, boolean rev, Coord2d pathfinderEndpoint, Coord2d plantGobEndpoint, AtomicBoolean setDir) throws InterruptedException {
+        if (!dropOff(true) || !stamina())
+            return false;
 
-    /** Picks up the by-products that have a put area from the block. */
+        Gob plant = null;
+        Coord plantTile = plantGobEndpoint.div(MCache.tilesz).floor();
+        for (CropRegistry.CropStage cs : CropRegistry.getStages(crop.plant)) {
+            if (!stageAllowed(cs.stage))
+                continue;
+            plant = Finder.findGob(plantTile, crop.plant, cs.stage);
+            if (plant != null)
+                break;
+        }
+        if (plant == null)
+            plant = Finder.findGob(plantTile, FALLOW, 0);
+        if (plant != null && !skipped.contains(plant.id)) {
+            if (PathFinder.isAvailable(pathfinderEndpoint)) {
+                new PathFinder(pathfinderEndpoint).run(gui);
+                if (setDir.get()) {
+                    new SetDir(new Coord2d(0, rev ? 1 : -1)).run(gui);
+                    setDir.set(false);
+                }
+            } else {
+                new PathFinder(plant).run(gui);
+            }
+            if (!harvestOne(plant, false))
+                return false;
+        }
+
+        for (CropRegistry.CropStage cs : CropRegistry.getStages(crop.plant)) {
+            if (!stageAllowed(cs.stage))
+                continue;
+            ArrayList<Gob> left;
+            while (!(left = unskipped(Finder.findGobs(area, crop.plant, cs.stage))).isEmpty())
+                if (!harvestOne(left.get(0), true))
+                    return false;
+        }
+        ArrayList<Gob> fallow;
+        while (!(fallow = unskipped(Finder.findGobs(area, FALLOW, 0))).isEmpty())
+            if (!harvestOne(fallow.get(0), true))
+                return false;
+        return dropOff(true);
+    }
+
+    private boolean harvestOne(Gob plant, boolean walk) throws InterruptedException {
+        if (!dropOff(true))
+            return false;
+        if (walk)
+            new PathFinder(plant).run(gui);
+        new SelectFlowerAction("Harvest", plant).run(gui);
+        FieldTasks.Gone gone = new FieldTasks.Gone(plant.id, 8000);
+        NUtils.getUI().core.addTask(gone);
+        if (gone.timedOut)
+            skipped.add(plant.id);
+        return dropOff(true);
+    }
+
+    /**
+     * HarvestCrop.processHarvestedItems (regular path): drop what goes to piles straight away,
+     * and take seeds (or champignons) to storage once the inventory is nearly full.
+     *
+     * @param onlyIfFull false at the end of the block: everything carried goes to storage
+     */
+    private boolean dropOff(boolean onlyIfFull) throws InterruptedException {
+        if (gui.vhand != null) {
+            if (crop.containerStore)
+                NUtils.dropToInv();
+            else
+                NUtils.drop(gui.vhand);
+        }
+        List<String> dropNow = new ArrayList<>();
+        for (WItem it : gui.getInventory().getItems()) {
+            String name = ((NGItem) it.item).name();
+            if (name != null && stores.dropsOnHarvest(name) && !dropNow.contains(name))
+                dropNow.add(name);
+        }
+        for (String name : dropNow)
+            for (WItem it : gui.getInventory().getWItems(dropAlias(name)))
+                NUtils.drop(it);
+        if (onlyIfFull && gui.getInventory().getFreeSpace() < 3)
+            return ensureRoom(3);
+        return true;
+    }
+
+    /**
+     * HarvestCrop.dropAlias, plus one fix: the drop never takes the crop's seeds with it. The
+     * original matches by substring, so dropping "Carrot" also dropped any "Carrot Seeds" held.
+     */
+    private NAlias dropAlias(String targetName) {
+        ArrayList<String> exceptions = new ArrayList<>();
+        if (!targetName.toLowerCase().contains("seed"))
+            exceptions.add("seed");
+        boolean unplantable = false;
+        for (CropRegistry.CropStage stage : CropRegistry.getStages(crop.plant))
+            if (!stage.plantable && stage.result.keys.contains(targetName))
+                unplantable = true;
+        if (unplantable) {
+            for (CropRegistry.CropStage stage : CropRegistry.getStages(crop.plant))
+                for (String key : stage.result.keys)
+                    if (!targetName.toLowerCase().contains(key.toLowerCase()))
+                        exceptions.add(key);
+        }
+        return new NAlias(Collections.singletonList(targetName), exceptions);
+    }
+
+    // ===================================================================================
+    // After each block: pick up what was dropped and store it
+    // ===================================================================================
+
+    /**
+     * Picks up everything the harvest left in the block (the dropped produce, straw and other
+     * by-products with a put area, whole heads), then stores it all before the next block - the
+     * old bots' CollectItemsToPile, per block. A tile's margin round the block catches what was
+     * dropped while standing at a column end.
+     */
     boolean collect() throws InterruptedException {
-        List<LargeFieldCrop.ByProduct> wanted = stores.collectedByProducts(gui);
-        if (wanted.isEmpty() && crop.whole == null)
+        Area fa = fieldArea();
+        if (fa == null)
             return true;
-        Area s = session();
-        if (s == null)
-            return true;
-        Pair<Coord2d, Coord2d> rc = new Pair<>(s.ul.mul(MCache.tilesz), s.br.add(1, 1).mul(MCache.tilesz));
+        Pair<Coord2d, Coord2d> rc = new Pair<>(fa.ul.sub(1, 1).mul(MCache.tilesz), fa.br.add(1, 1).mul(MCache.tilesz));
         if (crop.whole != null && !collectWhole(rc))
             return false;
-        for (LargeFieldCrop.ByProduct bp : wanted) {
-            NAlias alias = new NAlias(new ArrayList<>(bp.alias.keys), new ArrayList<>(Arrays.asList("stockpile", "barrel", "plants/")));
+        for (NAlias kind : stores.groundKinds(gui)) {
+            NAlias alias = new NAlias(new ArrayList<>(kind.keys), withContainers(kind.exceptions));
             while (true) {
-                Gob item = null;
-                Coord2d me = gui.map.player().rc;
-                for (Gob g : Finder.findGobs(rc, alias))
-                    if (!skipped.contains(g.id) && (item == null || g.rc.dist(me) < item.rc.dist(me)))
-                        item = g;
+                Gob item = nearest(rc, alias);
                 if (item == null)
                     break;
                 if (!ensureRoom(2) || !stamina())
                     return false;
                 if (Finder.findGob(item.id) == null)
                     continue;
-                if (item.rc.dist(gui.map.player().rc) > MCache.tilesz2.x)
-                    new PathFinder(item).run(gui);
-                // Shift + right click, as NUtils.takeFromEarth, with a time limit on the wait.
-                gui.map.wdgmsg("click", Coord.z, item.rc.floor(posres), 3, 0, 1, (int) item.id, item.rc.floor(posres), 0, -1);
-                FieldTasks.Gone gone = new FieldTasks.Gone(item.id, 5000);
-                NUtils.getUI().core.addTask(gone);
-                if (gone.timedOut)
-                    skipped.add(item.id);
-                NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
+                pickUp(item);
             }
         }
+        return store();
+    }
+
+    private Gob nearest(Pair<Coord2d, Coord2d> rc, NAlias alias) throws InterruptedException {
+        Gob best = null;
+        Coord2d me = gui.map.player().rc;
+        for (Gob g : Finder.findGobs(rc, alias))
+            if (!skipped.contains(g.id) && (best == null || g.rc.dist(me) < best.rc.dist(me)))
+                best = g;
+        return best;
+    }
+
+    /** Shift + right click, as NUtils.takeFromEarth (takes every one of the kind around), with a time limit on the wait. */
+    private void pickUp(Gob item) throws InterruptedException {
+        if (item.rc.dist(gui.map.player().rc) > MCache.tilesz2.x)
+            new PathFinder(item).run(gui);
+        gui.map.wdgmsg("click", Coord.z, item.rc.floor(posres), 3, 0, 1, (int) item.id, item.rc.floor(posres), 0, -1);
+        FieldTasks.Gone gone = new FieldTasks.Gone(item.id, 5000);
+        NUtils.getUI().core.addTask(gone);
+        if (gone.timedOut)
+            skipped.add(item.id);
+        NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
+    }
+
+    /**
+     * Lettuce, pumpkin, watermelon: picks up the whole heads and cuts them, as
+     * LettucePumpkinAndWatermelonCollector does - lettuce at half full, a pumpkin or watermelon
+     * once no other fits.
+     */
+    private boolean collectWhole(Pair<Coord2d, Coord2d> rc) throws InterruptedException {
+        LargeFieldCrop.Whole w = crop.whole;
+        NAlias ground = new NAlias(new ArrayList<>(w.alias.keys), withContainers(w.alias.exceptions));
+        int fits = 0;
+        while (true) {
+            Gob item = nearest(rc, ground);
+            if (item == null)
+                break;
+            ArrayList<WItem> held = gui.getInventory().getItems(w.alias);
+            if (!held.isEmpty()) {
+                int free = gui.getInventory().getNumberFreeCoord(held.get(0));
+                fits = Math.max(fits, free + held.size());
+                if (w.cutWhenHalfFull ? free <= fits / 2 : free == 0)
+                    stores.cutWhole(gui);
+            }
+            // A whole pumpkin takes several cells.
+            if (!ensureRoom(4) || !stamina())
+                return false;
+            if (Finder.findGob(item.id) == null)
+                continue;
+            pickUp(item);
+        }
+        stores.cutWhole(gui);
         return true;
     }
 
-    // ----- seeding -----
+    private static ArrayList<String> withContainers(List<String> exceptions) {
+        ArrayList<String> res = new ArrayList<>(exceptions);
+        res.addAll(Arrays.asList("stockpile", "barrel", "plants/"));
+        return res;
+    }
+
+    // ===================================================================================
+    // Planting lap - port of SeedCrop
+    // ===================================================================================
 
     private boolean tileFree(Area.Tile tile) {
         if (tile.gobs.isEmpty())
@@ -328,6 +535,151 @@ final class FieldWork {
             if (!NParser.checkName(name, "straw"))
                 return false;
         }
+        return true;
+    }
+
+    private int freeSoil(Area inclusive) {
+        Area.Tile[][] tiles = Area.getTiles(inclusive, MOUNDBED);
+        int free = 0;
+        for (Area.Tile[] col : tiles)
+            for (Area.Tile t : col)
+                if (NParser.checkName(t.name, soil) && tileFree(t))
+                    free++;
+        return free;
+    }
+
+    /** Plants the block: SeedCrop's walk, limited to the block. */
+    boolean seed() throws InterruptedException {
+        for (int pass = 0; pass < PASSES; pass++) {
+            Area fa = fieldArea();
+            if (fa == null || freeSoil(inclusive(fa)) == 0)
+                return true;
+            if (!seedPass(fa))
+                return false;
+        }
+        return true;
+    }
+
+    private boolean seedPass(Area fa) throws InterruptedException {
+        Coord2d me = gui.map.player().rc;
+        Coord start = me.dist(fa.br.mul(MCache.tilesz)) < me.dist(fa.ul.mul(MCache.tilesz)) ? fa.br.sub(1, 1) : fa.ul;
+        Coord pos = new Coord(start);
+        boolean rev = pos.equals(fa.ul);
+        boolean revdir = rev;
+
+        if (!rev) {
+            while (pos.x >= fa.ul.x) {
+                AtomicBoolean setDir = new AtomicBoolean(true);
+                if (revdir) {
+                    while (pos.y <= fa.br.y - 1) {
+                        Coord endPos = new Coord(Math.max(pos.x - 1, fa.ul.x), Math.min(pos.y + 1, fa.br.y - 1));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d endp = harea.ul.sub(0, 1).mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y + MCache.tileqsz.y);
+                        if (!seedCell(harea, revdir, endp, setDir))
+                            return false;
+                        pos.y += 2;
+                    }
+                    pos.y = fa.br.y - 1;
+                } else {
+                    while (pos.y >= fa.ul.y) {
+                        Coord endPos = new Coord(Math.max(pos.x - 1, fa.ul.x), Math.max(pos.y - 1, fa.ul.y));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d endp = harea.br.mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y).add(0, MCache.tileqsz.y);
+                        if (!seedCell(harea, revdir, endp, setDir))
+                            return false;
+                        pos.y -= 2;
+                    }
+                    pos.y = fa.ul.y;
+                }
+                revdir = !revdir;
+                pos.x -= 2;
+            }
+        } else {
+            while (pos.x <= fa.br.x - 1) {
+                AtomicBoolean setDir = new AtomicBoolean(true);
+                if (revdir) {
+                    while (pos.y <= fa.br.y - 1) {
+                        Coord endPos = new Coord(Math.min(pos.x + 1, fa.br.x - 1), Math.min(pos.y + 1, fa.br.y - 1));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d endp = harea.ul.sub(0, 1).mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y + MCache.tileqsz.y);
+                        if (!seedCell(harea, revdir, endp, setDir))
+                            return false;
+                        pos.y += 2;
+                    }
+                    pos.y = fa.br.y - 1;
+                } else {
+                    while (pos.y >= fa.ul.y) {
+                        Coord endPos = new Coord(Math.min(pos.x + 1, fa.br.x - 1), Math.max(pos.y - 1, fa.ul.y));
+                        Area harea = new Area(pos, endPos, true);
+                        Coord2d endp = harea.br.mul(MCache.tilesz).add(MCache.tilehsz).add(0, MCache.tileqsz.y);
+                        if (!seedCell(harea, revdir, endp, setDir))
+                            return false;
+                        pos.y -= 2;
+                    }
+                    pos.y = fa.ul.y;
+                }
+                revdir = !revdir;
+                pos.x += 2;
+            }
+        }
+        return true;
+    }
+
+    /** SeedCrop.seedCrop: walk to the cell's end, face down the column, plant the cell by area selection. */
+    private boolean seedCell(Area area, boolean rev, Coord2d target, AtomicBoolean setDir) throws InterruptedException {
+        Area.Tile[][] tiles = Area.getTiles(area, MOUNDBED);
+        int count = 0, total = 0;
+        for (int i = 0; i <= area.br.x - area.ul.x; i++)
+            for (int j = 0; j <= area.br.y - area.ul.y; j++)
+                if (NParser.checkName(tiles[i][j].name, soil)) {
+                    total++;
+                    if (tileFree(tiles[i][j]))
+                        count++;
+                }
+        if (count <= 0)
+            return true;
+        if (!stamina())
+            return false;
+        if (!gui.hand.isEmpty())
+            NUtils.dropToInv();
+
+        Source src = crop.containerStore ? containerStockFor(count) : stockFor(count);
+        if (src == null)
+            return false;
+
+        if (PathFinder.isAvailable(target)) {
+            new PathFinder(target).run(gui);
+            if (setDir.get()) {
+                new SetDir(new Coord2d(0, rev ? 1 : -1)).run(gui);
+                setDir.set(false);
+            }
+        } else {
+            for (int i = 0; i <= area.br.x - area.ul.x; i++)
+                for (int j = 0; j <= area.br.y - area.ul.y; j++)
+                    if (NParser.checkName(tiles[i][j].name, soil))
+                        new PathFinder(new Coord(area.ul.x + i, area.ul.y + j).mul(MCache.tilesz).add(MCache.tilehsz.x, MCache.tilehsz.y)).run(gui);
+        }
+        if (src == MIXED)
+            return seedTileByTile(area, tiles);
+
+        WItem stack = usableStack(src);
+        if (stack == null) {
+            error = "no usable " + crop.subtype + " planting material";
+            return false;
+        }
+        gui.getInventory().activateItem(stack);
+        NUtils.getUI().core.addTask(new GetCurs("harvest"));
+        if (rev)
+            gui.map.wdgmsg("sel", area.ul, area.br, 1);
+        else
+            gui.map.wdgmsg("sel", area.br, area.ul, 1);
+        FieldTasks.Planted planted = new FieldTasks.Planted(area, total, soil, 20000);
+        NUtils.getUI().core.addTask(planted);
+        if (planted.timedOut)
+            System.out.println("[LargeField] cell " + area.ul + " was not fully planted in time");
+        NUtils.getUI().core.addTask(new FieldTasks.Pause(200));
+        if (!gui.hand.isEmpty())
+            NUtils.dropToInv();
         return true;
     }
 
@@ -356,18 +708,12 @@ final class FieldWork {
     }
 
     /**
-     * A source holding enough for the tiles, fetching from the stores once if allowed. Null when
-     * nothing carried covers the tiles and fetching isn't allowed, or (error set) every source is spent.
+     * SeedCrop.ensureStockForBlock: a source holding enough for the cell, fetching a full
+     * inventory from the nearest store when it runs short, and falling back to the next kind
+     * (seeds -> vegetables) when even a fetch can't cover the cell. Null (error set) when every
+     * source is spent.
      */
-    private Source stockFor(int tiles, boolean mayFetch) throws InterruptedException {
-        if (!mayFetch) {
-            for (int i = sourceIdx; i < sources.size(); i++)
-                if (amount(sources.get(i)) >= tiles * sources.get(i).perTile)
-                    return sources.get(i);
-            return null;
-        }
-        if (crop.containerStore)
-            return containerStockFor(tiles);
+    private Source stockFor(int tiles) throws InterruptedException {
         while (sourceIdx < sources.size()) {
             Source src = sources.get(sourceIdx);
             if (amount(src) >= tiles * src.perTile)
@@ -378,7 +724,6 @@ final class FieldWork {
                 return null;
             if (amount(src) >= tiles * src.perTile)
                 return src;
-            // Even a full fetch can't cover this cell: fall back to the next kind (seeds -> vegetables).
             sourceIdx++;
         }
         if (error == null)
@@ -399,8 +744,10 @@ final class FieldWork {
             if (amount(src) >= tiles)
                 return src;
         if (heldTotal() < tiles) {
+            Area fa = fieldArea();
+            int blockNeeds = (fa == null) ? tiles : freeSoil(inclusive(fa));
             NGlobalCoord back = NUtils.bookmarkHere();
-            stores.fetch(gui, null, Math.max(tiles, freeSoilInBlock()) - heldTotal());
+            stores.fetch(gui, null, Math.max(tiles, blockNeeds) - heldTotal());
             if (!returnTo(back))
                 return null;
             for (Source src : sources)
@@ -419,82 +766,6 @@ final class FieldWork {
         for (Source src : sources)
             n += amount(src);
         return n;
-    }
-
-    private int freeSoilInBlock() throws InterruptedException {
-        Area s = session();
-        if (s == null)
-            return 0;
-        Area.Tile[][] tiles = Area.getTiles(s, MOUNDBED);
-        int free = 0;
-        for (Area.Tile[] col : tiles)
-            for (Area.Tile t : col)
-                if (NParser.checkName(t.name, soil) && tileFree(t))
-                    free++;
-        return free;
-    }
-
-    /**
-     * Plants every free soil tile of the block, 2x2 tiles at a time as SeedCrop does.
-     *
-     * @param mayFetch false: plant only from what is carried and skip the cells it can't cover
-     */
-    boolean seed(boolean mayFetch) throws InterruptedException {
-        Area s = session();
-        if (s == null)
-            return true;
-        boolean up = gui.map.player().rc.floor(MCache.tilesz).y > (s.ul.y + s.br.y) / 2;
-        for (Area strip : FieldGeometry.strips(new Area(s.ul, s.br.add(1, 1)), 2, fromRight(s))) {
-            for (Area cell : FieldGeometry.cells(strip, 2, up)) {
-                if (!seedCell(cell, mayFetch))
-                    return false;
-            }
-            up = !up;
-        }
-        return true;
-    }
-
-    private boolean seedCell(Area cell, boolean mayFetch) throws InterruptedException {
-        Area.Tile[][] tiles = Area.getTiles(cell, MOUNDBED);
-        int total = 0, free = 0;
-        for (int i = 0; i <= cell.br.x - cell.ul.x; i++)
-            for (int j = 0; j <= cell.br.y - cell.ul.y; j++)
-                if (NParser.checkName(tiles[i][j].name, soil)) {
-                    total++;
-                    if (tileFree(tiles[i][j]))
-                        free++;
-                }
-        if (free == 0)
-            return true;
-        if (!stamina())
-            return false;
-        if (!gui.hand.isEmpty())
-            NUtils.dropToInv();
-        Source src = stockFor(free, mayFetch);
-        if (src == null)
-            return !mayFetch;
-
-        if (src == MIXED)
-            return seedTileByTile(cell, tiles);
-        Coord2d at = Coord2d.of(cell.ul.add(cell.br).add(1, 1)).mul(MCache.tilesz).div(2);
-        if (PathFinder.isAvailable(at))
-            new PathFinder(at).run(gui);
-        WItem stack = usableStack(src);
-        if (stack == null) {
-            error = "no usable " + crop.subtype + " planting material";
-            return false;
-        }
-        gui.getInventory().activateItem(stack);
-        NUtils.getUI().core.addTask(new GetCurs("harvest"));
-        gui.map.wdgmsg("sel", cell.ul, cell.br, 1);
-        FieldTasks.Planted planted = new FieldTasks.Planted(cell, total, soil, 20000);
-        NUtils.getUI().core.addTask(planted);
-        if (planted.timedOut)
-            System.out.println("[LargeField] cell " + cell.ul + " was not fully planted in time");
-        NUtils.getUI().core.addTask(new FieldTasks.Pause(200));
-        if (!gui.hand.isEmpty())
-            NUtils.dropToInv();
-        return true;
     }
 
     /** One tile at a time, any kind held, cheapest first. */
@@ -523,55 +794,5 @@ final class FieldWork {
             }
         }
         return true;
-    }
-
-    // ----- whole heads and fruit (lettuce, pumpkin, watermelon) -----
-
-    /**
-     * Picks up the whole heads or fruit the harvest left in the block and cuts them, as
-     * LettucePumpkinAndWatermelonCollector does: lettuce at half full, a pumpkin or watermelon
-     * once no other fits. The seeds that come out are what the block is replanted with.
-     */
-    private boolean collectWhole(Pair<Coord2d, Coord2d> rc) throws InterruptedException {
-        LargeFieldCrop.Whole w = crop.whole;
-        NAlias ground = new NAlias(new ArrayList<>(w.alias.keys), withContainers(w.alias.exceptions));
-        int fits = 0;
-        while (true) {
-            Gob item = null;
-            Coord2d me = gui.map.player().rc;
-            for (Gob g : Finder.findGobs(rc, ground))
-                if (!skipped.contains(g.id) && (item == null || g.rc.dist(me) < item.rc.dist(me)))
-                    item = g;
-            if (item == null)
-                break;
-            ArrayList<WItem> held = gui.getInventory().getItems(w.alias);
-            if (!held.isEmpty()) {
-                int free = gui.getInventory().getNumberFreeCoord(held.get(0));
-                fits = Math.max(fits, free + held.size());
-                if (w.cutWhenHalfFull ? free <= fits / 2 : free == 0)
-                    stores.cutWhole(gui);
-            }
-            // A whole pumpkin takes several cells.
-            if (!ensureRoom(4) || !stamina())
-                return false;
-            if (Finder.findGob(item.id) == null)
-                continue;
-            if (item.rc.dist(gui.map.player().rc) > MCache.tilesz2.x)
-                new PathFinder(item).run(gui);
-            gui.map.wdgmsg("click", Coord.z, item.rc.floor(posres), 3, 0, 1, (int) item.id, item.rc.floor(posres), 0, -1);
-            FieldTasks.Gone gone = new FieldTasks.Gone(item.id, 5000);
-            NUtils.getUI().core.addTask(gone);
-            if (gone.timedOut)
-                skipped.add(item.id);
-            NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
-        }
-        stores.cutWhole(gui);
-        return true;
-    }
-
-    private static ArrayList<String> withContainers(List<String> exceptions) {
-        ArrayList<String> res = new ArrayList<>(exceptions);
-        res.addAll(Arrays.asList("stockpile", "barrel", "plants/"));
-        return res;
     }
 }

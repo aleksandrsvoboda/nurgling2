@@ -14,6 +14,8 @@ import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.widgets.Specialisation;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,11 +26,12 @@ import java.util.Set;
  * loads at once. Uses the same areas as the regular farmer of the crop (see {@link LargeFieldCrop}).
  *
  * Every crop area of the crop is farmed, nearest first, so a field too big for one area can be
- * covered by several. Each area is cut into blocks that fit well inside the view, and the bot
- * walks them in a serpentine: walk to the block, wait for it to load, harvest it, pick up the
- * by-products, replant it. Seeds come straight from the block's own harvest where they can;
- * whenever the inventory fills, or planting material runs out, the bot walks to the nearest
- * seed / put / trough area and back.
+ * covered by several. Each area is cut into blocks that fit well inside the view (24 tiles; objects
+ * load about 40 tiles out), walked in a serpentine. Harvest lap: walk to a block, wait for it to
+ * load, harvest it exactly as the regular farmer harvests a field (rows walked back and forth,
+ * produce dropped, seeds to the barrels when nearly full), then pick up what was dropped and
+ * store it before the next block. Planting lap: the blocks again in reverse, each planted as the
+ * regular farmer plants a field. Every store trip goes to the nearest seed / put / trough area.
  *
  * A run that stops part way (stop button, full barrels) is carried on by the next run of the same
  * crop within six hours, from the block it was working on (see {@link FieldProgress}).
@@ -135,6 +138,7 @@ public class LargeFieldFarmer implements Action {
 
         boolean[] dir = direction(gui, map);
         int first = 0;
+        int lap = FieldProgress.HARVEST;
         List<Area> blocks = FieldGeometry.blocks(map.field, blockSize, blockSize, dir[0], dir[1]);
         // Resume only into the same cut of the same field; a changed area or block size starts over.
         if (from != null && from.blocks == blocks.size() && from.blockSize == blockSize) {
@@ -142,29 +146,56 @@ public class LargeFieldFarmer implements Action {
             dir[1] = from.fromBottom;
             blocks = FieldGeometry.blocks(map.field, blockSize, blockSize, dir[0], dir[1]);
             first = Math.min(from.block, blocks.size());
+            lap = from.lap;
         }
         String key = FieldProgress.key(area);
         gui.msg("Large field " + area.name + ": " + (map.field.br.x - map.field.ul.x) + "x"
                 + (map.field.br.y - map.field.ul.y) + " tiles, " + blocks.size() + " blocks"
-                + (first > 0 ? ", starting at block " + (first + 1) : ""));
+                + (first > 0 || lap == FieldProgress.PLANT
+                    ? ", carrying on with the " + (lap == FieldProgress.PLANT ? "planting" : "harvest") + " at block " + (first + 1) : ""));
         int unreachable = 0;
-        for (int i = first; i < blocks.size(); i++) {
-            FieldProgress.Mark at = new FieldProgress.Mark(key, i, blocks.size(), blockSize, dir[0], dir[1], System.currentTimeMillis());
-            at.done.addAll(done);
-            FieldProgress.save(crop.id, at);
-            if (!work.enter(blocks.get(i))) {
+
+        // Harvest lap: each block harvested like the old farmers, then its drops picked up and stored.
+        if (lap == FieldProgress.HARVEST) {
+            for (int i = first; i < blocks.size(); i++) {
+                save(crop, key, FieldProgress.HARVEST, i, blocks.size(), dir, done);
+                if (!work.enter(blocks.get(i))) {
+                    unreachable++;
+                    continue;
+                }
+                System.out.println("[LargeField] " + area.name + " harvest " + (i + 1) + "/" + blocks.size());
+                if (!work.harvest() || !work.collect())
+                    return work.error;
+            }
+            first = 0;
+        }
+
+        // Planting lap, back the way the harvest came so it starts where the harvest ended.
+        List<Area> back = new ArrayList<>(blocks);
+        Collections.reverse(back);
+        for (int i = first; i < back.size(); i++) {
+            save(crop, key, FieldProgress.PLANT, i, blocks.size(), dir, done);
+            if (!work.enter(back.get(i))) {
                 unreachable++;
                 continue;
             }
-            System.out.println("[LargeField] " + area.name + " block " + (i + 1) + "/" + blocks.size());
-            if (!work.harvest() || !work.collect() || !work.seed(true))
+            System.out.println("[LargeField] " + area.name + " planting " + (i + 1) + "/" + back.size());
+            if (!work.seed())
                 return work.error;
         }
-        if (!work.finish())
+        // Leftover seeds and vegetables go back to their stores, as SeedCrop does.
+        if (!work.store())
             return work.error;
         if (unreachable > 0)
-            gui.msg("Large field " + area.name + ": " + unreachable + " of " + blocks.size() + " blocks could not be reached");
+            gui.msg("Large field " + area.name + ": " + unreachable + " block visits could not reach their block");
         return null;
+    }
+
+    private void save(LargeFieldCrop crop, String key, int lap, int block, int blocks, boolean[] dir, Set<String> done) {
+        FieldProgress.Mark at = new FieldProgress.Mark(key, block, blocks, blockSize, dir[0], dir[1], System.currentTimeMillis());
+        at.lap = lap;
+        at.done.addAll(done);
+        FieldProgress.save(crop.id, at);
     }
 
     /** {fromRight, fromBottom}: start from the corner nearest the player when the field is loaded. */

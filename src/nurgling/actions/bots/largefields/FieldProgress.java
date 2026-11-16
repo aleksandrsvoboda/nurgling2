@@ -24,10 +24,14 @@ final class FieldProgress {
     static final long MAX_AGE_MS = 6L * 60 * 60 * 1000;
     private static final String FILE = "large_fields_progress.json";
 
-    /** The field and block to start from, and the fields this run already finished. */
+    static final int HARVEST = 0, PLANT = 1;
+
+    /** The field, lap and block to start from, and the fields this run already finished. */
     static final class Mark {
         final Set<String> done = new LinkedHashSet<>();
         final String field;
+        /** {@link #HARVEST} or {@link #PLANT}. */
+        int lap = HARVEST;
         final int block;
         final int blocks;
         final int blockSize;
@@ -84,6 +88,7 @@ final class FieldProgress {
             JSONObject o = all.getJSONObject(crop);
             Mark m = new Mark(o.getString("field"), o.getInt("block"), o.getInt("blocks"), o.getInt("blockSize"),
                     o.getBoolean("fromRight"), o.getBoolean("fromBottom"), o.getLong("savedAt"));
+            m.lap = o.optInt("lap", HARVEST);
             JSONArray done = o.optJSONArray("done");
             if (done != null)
                 for (int i = 0; i < done.length(); i++)
@@ -106,6 +111,7 @@ final class FieldProgress {
         o.put("fromBottom", m.fromBottom);
         o.put("savedAt", m.savedAt);
         o.put("done", new JSONArray(m.done));
+        o.put("lap", m.lap);
         all.put(crop, o);
         writeAll(all);
     }
