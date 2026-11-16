@@ -66,6 +66,7 @@ public class SessionManager {
     /** One timer store per world, shared by every session logged into it; see {@link nurgling.timers.TimerStore}. */
     private final ConcurrentHashMap<String, nurgling.timers.TimerStore> timerStores = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, nurgling.forage.ForageStore> forageStores = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, nurgling.leveling.LevelPlans> levelPlans = new ConcurrentHashMap<>();
 
     /** Characters selected for squad orders; declared after {@code listeners}, which it registers in. */
     private final nurgling.sessions.squad.Squad squad = new nurgling.sessions.squad.Squad(this);
@@ -579,6 +580,13 @@ public class SessionManager {
     /** Every world that has had a forage store opened this run; the sync service walks these. */
     public Collection<nurgling.forage.ForageStore> forageStores() {
         return forageStores.values();
+    }
+
+    /** The leveling plans of a world. Every session on that world gets the same instance. */
+    public nurgling.leveling.LevelPlans levelPlans(String genus) {
+        String key = (genus == null || genus.isEmpty()) ? "" : genus;
+        return levelPlans.computeIfAbsent(key, g -> new nurgling.leveling.LevelPlans(
+            nurgling.profiles.ConfigFactory.getConfig(g).getLevelPlansPath()));
     }
 
     /**

@@ -23,6 +23,13 @@ public final class ReliefRenderer {
     /** Contour lines; every fifth one (an index contour) darker. */
     static final double CONTOUR = 0.84, INDEXCONTOUR = 0.70;
     static final int INDEXEVERY = 5;
+    /** Leveling plans: tiles to dig, to fill, already level, and the plan's outline. */
+    static final int CUT = 0xe0463c, FILL = 0x3c8cf0, LEVEL = 0x96d296, PLANLINE = 0xe0a040;
+    /** Ground within this many height units of the target counts as level. */
+    static final double LEVELTOL = 0.5;
+    /** Height difference at which the dig or fill tint is at its strongest. */
+    static final double FULLTINT = 10;
+    static final double MINTINT = 0.25, MAXTINT = 0.8, LEVELTINT = 0.45, WASH = 0.35, PLANEDGE1 = 0.6;
     /* Light from the north-west, about 35 degrees up: x east, y south, z up. */
     private static final double LX, LY, LZ;
     static {
@@ -43,6 +50,12 @@ public final class ReliefRenderer {
 	/** Colour, 0xRRGGBB; read only inside the grid. */
 	public final int[] rgb;
 	public final boolean[] cliff, water;
+	/** The leveling plan a tile belongs to, as a small id; -1 = none. Read on the border ring too. */
+	public final int[] plan;
+	/** The height a plan levels this tile to; NaN = none. */
+	public final float[] target;
+	/** Thin lines where the tile type changes; off when relief shading is off and only a plan draws. */
+	public boolean edges = true;
 
 	public Cells(int n) {
 	    this.n = n;
@@ -55,6 +68,10 @@ public final class ReliefRenderer {
 	    rgb = new int[sz];
 	    cliff = new boolean[sz];
 	    water = new boolean[sz];
+	    plan = new int[sz];
+	    java.util.Arrays.fill(plan, -1);
+	    target = new float[sz];
+	    java.util.Arrays.fill(target, Float.NaN);
 	}
 
 	public int at(int x, int y) {
@@ -136,6 +153,48 @@ public final class ReliefRenderer {
 	return(f);
     }
 
+    private static int mix(int a, int b, double t) {
+	int r = (int)Math.round((((a >> 16) & 0xff) * (1 - t)) + (((b >> 16) & 0xff) * t));
+	int g = (int)Math.round((((a >> 8) & 0xff) * (1 - t)) + (((b >> 8) & 0xff) * t));
+	int l = (int)Math.round(((a & 0xff) * (1 - t)) + ((b & 0xff) * t));
+	return((r << 16) | (g << 8) | l);
+    }
+
+    /**
+     * A tile's colour under its leveling plan: red where the ground is above the target, blue where
+     * it is below, pale green where it is already level, stronger the further off it is. The tile's
+     * height is the mean of its four corners. Zoomed out the heights are block minimums, which
+     * would read as fill everywhere, so there the plan is a flat wash instead.
+     */
+    static int planrgb(Cells c, int x, int y, int lvl, int col) {
+	int i = c.at(x, y);
+	if((c.plan[i] < 0) || c.water[i] || c.cliff[i])
+	    return(col);
+	if(lvl > 0)
+	    return(mix(col, PLANLINE, WASH));
+	float t = c.target[i];
+	if(Float.isNaN(t))
+	    return(col);
+	double zs = 0;
+	int zn = 0;
+	for(int j : new int[] {i, c.at(x + 1, y), c.at(x, y + 1), c.at(x + 1, y + 1)}) {
+	    if(c.has(j)) {
+		zs += c.z[j];
+		zn++;
+	    }
+	}
+	double d = (zs / zn) - t;
+	if(Math.abs(d) < LEVELTOL)
+	    return(mix(col, LEVEL, LEVELTINT));
+	double a = MINTINT + ((MAXTINT - MINTINT) * Math.min(1, Math.abs(d) / FULLTINT));
+	return(mix(col, (d > 0) ? CUT : FILL, a));
+    }
+
+    /** Whether a plan's outline runs between two cells: one is in a plan and the other is not, or in another. */
+    private static boolean planedge(Cells c, int i, int j) {
+	return((c.plan[i] != c.plan[j]) && ((c.plan[i] >= 0) || (c.plan[j] >= 0)));
+    }
+
     private static boolean belowneighbour(Cells c, int x, int y) {
 	int i = c.at(x, y);
 	for(int j : new int[] {c.at(x - 1, y), c.at(x + 1, y), c.at(x, y - 1), c.at(x, y + 1)}) {
@@ -170,22 +229,32 @@ public final class ReliefRenderer {
 		    col = CLIFF;
 		    f = 1;
 		} else {
-		    col = c.rgb[i];
+		    col = planrgb(c, x, y, lvl, c.rgb[i]);
 		    f = shade(c, x, y, span, c.water[i] ? ex * WATERSHADE : ex);
 		    if(nearcliff(c, x, y))
 			f *= NEARCLIFF;
 		}
-		boolean lline = false, tline = false;
+		boolean lline = false, tline = false, lplan = false, tplan = false;
 		double lcont = 1, tcont = 1;
 		if(k == 1) {
-		    if(belowneighbour(c, x, y))
+		    if(c.edges && belowneighbour(c, x, y))
 			f *= SOFTEDGE;
 		    if(iv > 0)
 			f *= contourhigh(c, x, y, iv);
+		    if(c.plan[i] >= 0) {
+			for(int j : new int[] {c.at(x - 1, y), c.at(x + 1, y), c.at(x, y - 1), c.at(x, y + 1)}) {
+			    if(planedge(c, i, j)) {
+				col = mix(col, PLANLINE, PLANEDGE1);
+				break;
+			    }
+			}
+		    }
 		} else {
 		    int l = c.at(x - 1, y), t = c.at(x, y - 1);
-		    lline = c.has(l) && (c.tile[l] != c.tile[i]);
-		    tline = c.has(t) && (c.tile[t] != c.tile[i]);
+		    lline = c.edges && c.has(l) && (c.tile[l] != c.tile[i]);
+		    tline = c.edges && c.has(t) && (c.tile[t] != c.tile[i]);
+		    lplan = planedge(c, i, l);
+		    tplan = planedge(c, i, t);
 		    if(iv > 0) {
 			lcont = contour(c, i, l, iv);
 			tcont = contour(c, i, t, iv);
@@ -202,6 +271,13 @@ public final class ReliefRenderer {
 			    pf *= lcont;
 			if(py == 0)
 			    pf *= tcont;
+			if((lplan && (px == 0)) || (tplan && (py == 0))) {
+			    out[o]     = (byte)((PLANLINE >> 16) & 0xff);
+			    out[o + 1] = (byte)((PLANLINE >> 8) & 0xff);
+			    out[o + 2] = (byte)(PLANLINE & 0xff);
+			    out[o + 3] = (byte)255;
+			    continue;
+			}
 			out[o]     = (byte)clip(r * pf);
 			out[o + 1] = (byte)clip(g * pf);
 			out[o + 2] = (byte)clip(b * pf);

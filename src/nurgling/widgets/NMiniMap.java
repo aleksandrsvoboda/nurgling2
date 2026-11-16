@@ -305,6 +305,11 @@ NMiniMap extends MiniMap {
         // Show view box when zoomed in (scale >= 0.5)
         if(playerSegment && currentScale >= 0.5f && (Boolean)NConfig.get(NConfig.Key.showView)) {drawview(g);}
         drawmarkers(g);
+        if(levelToolHost) {
+            NGameUI lgui = getparent(NGameUI.class);
+            if((lgui != null) && (lgui.levelPlanWindow != null))
+                lgui.levelPlanWindow.drawTool(this, g);
+        }
         // Show icons on all zoom levels with high detail (data level 0 or 1)
         int dataLevel = getDataLevel();
         if(dataLevel <= 1)
@@ -1545,6 +1550,15 @@ NMiniMap extends MiniMap {
      * screen pixels, so tile boundaries can be thin lines. Never more than a tile's screen
      * size, so texture memory follows the screen area, not the number of grids.
      */
+    /** Set on the big map window's view: the leveling planner's tools draw there. */
+    public boolean levelToolHost = false;
+
+    /** This world's leveling plans, or null outside a game. */
+    public nurgling.leveling.LevelPlans levelPlans() {
+        NGameUI gui = getparent(NGameUI.class);
+        return((gui == null) ? null : gui.levelPlans);
+    }
+
     public int reliefScale() {
         float px = UI.scale(1f) * currentScale;
         return (px >= 4) ? 4 : (px >= 2) ? 2 : 1;
