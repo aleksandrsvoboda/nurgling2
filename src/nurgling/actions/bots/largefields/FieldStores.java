@@ -96,6 +96,18 @@ final class FieldStores {
         return res;
     }
 
+    /** Whether anything of the harvest is in the inventory (seeds, produce, pieces, by-products, heads). */
+    boolean carriesHarvest(NGameUI gui) throws InterruptedException {
+        Set<String> names = new LinkedHashSet<>();
+        for (CropRegistry.CropStage s : CropRegistry.getStages(crop.plant))
+            names.addAll(s.result.keys);
+        for (LargeFieldCrop.ByProduct bp : crop.byProducts)
+            names.add(bp.name);
+        if (!namesInInventory(gui, names).isEmpty())
+            return true;
+        return crop.whole != null && !gui.getInventory().getItems(crop.whole.alias).isEmpty();
+    }
+
     /** Why the run can't start, or null: pumpkin and watermelon need a put area for their pieces. */
     String missingRequired(NGameUI gui) {
         if (crop.whole != null && crop.whole.pieceRequired) {
