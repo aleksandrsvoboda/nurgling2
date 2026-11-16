@@ -1,10 +1,6 @@
 package nurgling.actions.bots.largefields;
 
 import haven.Area;
-import haven.Coord2d;
-import haven.Gob;
-import haven.MCache;
-import haven.OCache;
 import nurgling.NUtils;
 import nurgling.tasks.NTask;
 import nurgling.tools.Finder;
@@ -20,18 +16,14 @@ final class FieldTasks {
     private FieldTasks() {}
 
     /**
-     * Until a block's grids are loaded and the number of objects inside it has stopped changing
-     * for {@link #SETTLE_MS}: objects keep arriving for a moment after a grid loads, and a scan
-     * taken too early reads ripe plants or planted tiles as missing.
+     * Until a block's grids are loaded. Arriving at the block normally means they already are, so
+     * this rarely waits at all; it guards against scanning a block whose grid hasn't come in yet.
      */
     static final class BlockLoaded extends NTask {
-        static final long SETTLE_MS = 1500;
-        static final long LIMIT_MS = 20000;
+        static final long LIMIT_MS = 10000;
         private final FieldMap map;
         private final Area block;
         private final long start = System.currentTimeMillis();
-        private long stableSince = 0;
-        private int lastCount = -1;
         boolean timedOut = false;
 
         BlockLoaded(FieldMap map, Area block) {
@@ -41,41 +33,14 @@ final class FieldTasks {
 
         @Override
         public boolean check() {
-            long now = System.currentTimeMillis();
-            if (now - start > LIMIT_MS) {
+            if (map.loaded(block, NUtils.getGameUI().map.glob.map))
+                return true;
+            if (System.currentTimeMillis() - start > LIMIT_MS) {
                 timedOut = true;
                 return true;
             }
-            MCache mc = NUtils.getGameUI().map.glob.map;
-            if (!map.loaded(block, mc))
-                return false;
-            Area s = map.toSessionInclusive(block, mc);
-            if (s == null)
-                return false;
-            int count = countGobs(s);
-            if (count != lastCount) {
-                lastCount = count;
-                stableSince = now;
-                return false;
-            }
-            return now - stableSince >= SETTLE_MS;
+            return false;
         }
-    }
-
-    /** Objects inside an inclusive session-tile area. */
-    static int countGobs(Area s) {
-        Coord2d a = s.ul.mul(MCache.tilesz);
-        Coord2d b = s.br.add(1, 1).mul(MCache.tilesz);
-        int n = 0;
-        synchronized (NUtils.getGameUI().ui.sess.glob.oc) {
-            for (Gob gob : NUtils.getGameUI().ui.sess.glob.oc) {
-                if (gob instanceof OCache.Virtual)
-                    continue;
-                if (gob.rc.x >= a.x && gob.rc.y >= a.y && gob.rc.x < b.x && gob.rc.y < b.y)
-                    n++;
-            }
-        }
-        return n;
     }
 
     /** Until the object is gone, or the time limit. */
