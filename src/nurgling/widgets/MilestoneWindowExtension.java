@@ -48,6 +48,8 @@ public final class MilestoneWindowExtension {
         private Gob post = null;
         private String postKey = null;
         private final Map<Label, TagCell> cells = new HashMap<>();
+        /** The window's right margin past its buttons, measured once before the column widens it. */
+        private int margin = -1;
 
         Binder() {
             super(Coord.z);
@@ -109,12 +111,14 @@ public final class MilestoneWindowExtension {
                 return;
             rows.sort((a, b) -> Integer.compare(a.c.y, b.c.y));
 
+            // Every button on a road row, not just Follow / Travel: some posts add Extend / Connect.
             int right = 0;
-            for (Button b : buttons)
-                right = Math.max(right, b.c.x + b.sz.x);
+            for (Widget w = parent.child; w != null; w = w.next) {
+                if (w instanceof Button && onRow(w, rows))
+                    right = Math.max(right, w.c.x + w.sz.x);
+            }
             int x = right + GAP;
 
-            boolean added = false;
             Map<String, Integer> seen = new HashMap<>();
             for (Label row : rows) {
                 int n = seen.merge(row.texts, 1, Integer::sum) - 1;
@@ -122,18 +126,27 @@ public final class MilestoneWindowExtension {
                 if (cell == null) {
                     cell = parent.add(new TagCell(postKey, RoadTags.roadKey(row.texts, n), CELL_W));
                     cells.put(row, cell);
-                    added = true;
                 }
                 cell.move(Coord.of(x, row.c.y + (row.sz.y - cell.sz.y) / 2));
             }
-            if (added) {
-                Window wnd = (Window) parent;
-                Coord csz = wnd.csz();
-                int margin = Math.max(0, csz.x - right);
-                int w = x + CELL_W + margin;
-                if (w > csz.x)
-                    wnd.resize(Coord.of(w, csz.y));
+
+            // Buttons can arrive after the first layout, so widen whenever the column no longer fits,
+            // keeping the window's own right margin as it was before the column was added.
+            Window wnd = (Window) parent;
+            Coord csz = wnd.csz();
+            if (margin < 0)
+                margin = Math.max(0, csz.x - right);
+            int w = x + CELL_W + margin;
+            if (w > csz.x)
+                wnd.resize(Coord.of(w, csz.y));
+        }
+
+        private static boolean onRow(Widget w, List<Label> rows) {
+            for (Label row : rows) {
+                if (w.c.y < row.c.y + row.sz.y && w.c.y + w.sz.y > row.c.y)
+                    return true;
             }
+            return false;
         }
     }
 
