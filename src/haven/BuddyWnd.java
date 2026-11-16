@@ -149,8 +149,13 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	    online = status;
 	    GameUI gui = getparent(GameUI.class);
 	    if(gui != null) {
-		if(status == 1)
-		    ui.msg(L10n.get("kin.msg_online", name));
+		if(status == 1) {
+		    String text = L10n.get("kin.msg_online", name);
+		    if(Boolean.FALSE.equals(NConfig.get(NConfig.Key.kinOnlineSound)))
+			ui.msg(new UI.InfoMessage(text, null, UI.SimpleMessage.nosfx));
+		    else
+			ui.msg(text);
+		}
 	    }
 	}
 

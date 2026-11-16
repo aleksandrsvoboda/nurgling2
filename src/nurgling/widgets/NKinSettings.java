@@ -67,6 +67,20 @@ public class NKinSettings extends Window
 
         }, prev.pos("bl").adds(0, 5));
 
+        /* Not per group: the "is now online" message comes from the kin list, for every group alike. */
+        prev = add(new CheckBox(L10n.get("kin.notification.online_sound"))
+        {
+            {
+                a = !Boolean.FALSE.equals(NConfig.get(NConfig.Key.kinOnlineSound));
+            }
+
+            public void set(boolean val)
+            {
+                NConfig.set(NConfig.Key.kinOnlineSound, val);
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 15));
+
         gs.changed(0);
         pack();
     }
