@@ -57,6 +57,12 @@ public class NRemoteUI extends RemoteUI {
 
                 // Register the new session and make it active
                 sm.addSessionAsActive(sess, nui);
+
+                /* A fresh login's UI is empty and draws nothing until the server's first widgets
+                 * arrive. Show the character screen's backdrop from its very first frame - this
+                 * runs while the UI is being built, before it replaces the login screen - so the
+                 * login art changes straight to the character art instead of blinking black. */
+                nurgling.widgets.charsel.CharselBridge.show(nui);
             }
 
             // Register lifecycle listener with the UI loop if not already done

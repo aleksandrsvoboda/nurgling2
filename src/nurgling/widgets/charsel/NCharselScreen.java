@@ -96,14 +96,27 @@ public class NCharselScreen extends Widget {
     }
 
     /* The designer painted one picture per account state; the server's verify and subscription
-     * images (kept as badges) say which applies. */
+     * images (kept as badges) say which applies. They arrive just before the character list, so
+     * until the list is here the screen keeps showing what it showed last time (as the login
+     * bridge did), instead of flashing the plain art; once it is here the answer is final and is
+     * remembered for next time. */
     private Tex art() {
+        if (list == null)
+            return (Img.getCharselBg(CharselBridge.lastArt()));
         boolean v = false, s = false;
         for (Img b : badges) {
             v |= (b.charselType == Img.CharselType.VERIFY);
             s |= (b.charselType == Img.CharselType.SUB);
         }
-        return (Img.getCharselBg(v, s));
+        int art = (v ? 1 : 0) | (s ? 2 : 0);
+        if (art != CharselBridge.lastArt())
+            NConfig.set(NConfig.Key.charselArt, art);
+        return (Img.getCharselBg(art));
+    }
+
+    /** This screen's size; the login bridge takes the same place. */
+    static Coord screenSize() {
+        return (UI.scale(ARTSZ));
     }
 
     protected void added() {
@@ -192,8 +205,14 @@ public class NCharselScreen extends Widget {
 
     public void cdestroy(Widget ch) {
         super.cdestroy(ch);
-        if (ch == list)
+        if (ch == list) {
             list = null;
+            /* The server takes the list away once a character is chosen, but leaves the rest of
+             * the screen up until the game is ready - seconds of bare background and smoke. Turn
+             * it into a loading screen instead: just the background, with "Loading..." and a
+             * spinner in the middle, until the game takes over. */
+            loading();
+        }
         if (ch == avatar) {
             avatar = null;
             avaview = null;
@@ -227,6 +246,31 @@ public class NCharselScreen extends Widget {
         if (list != null) {
             list.badgeSources(badges);
             list.newCharSource(newchar);
+        }
+    }
+
+    /* ------------------------------------------------------------- loading screen */
+
+    private boolean loading = false;
+    private Text loadtext = null;
+
+    private void loading() {
+        if (loading)
+            return;
+        loading = true;
+        for (Widget w = child; w != null; w = w.next) {
+            if (w != backdrop)
+                w.hide();
+        }
+        loadtext = NLoginTheme.heading.render(nurgling.i18n.L10n.get("charsel.loading"));
+    }
+
+    public void draw(GOut g) {
+        super.draw(g);
+        if (loading && (loadtext != null)) {
+            Coord mid = sz.div(2);
+            g.image(loadtext.tex(), mid.sub(loadtext.sz().x / 2, loadtext.sz().y));
+            NLoginTheme.drawSpinner(g, mid.add(0, UI.scale(28)), UI.scale(16), UI.scale(5));
         }
     }
 
@@ -372,6 +416,16 @@ public class NCharselScreen extends Widget {
      * short black dash in the frame's margin above the avatar rather than a border. Keep it blank. */
     public void tick(double dt) {
         super.tick(dt);
+        /* The server leaves this screen in place under the game while the world loads; once the
+         * game UI is here, get out of its way so the loading screen does not show through it. */
+        if (visible() && (parent != null)) {
+            for (Widget w = parent.child; w != null; w = w.next) {
+                if (w instanceof GameUI) {
+                    hide();
+                    break;
+                }
+            }
+        }
         if (avatar instanceof ProxyFrame)
             ((ProxyFrame<?>) avatar).color = null;
         /* Each character wears its own plague pattern on the big avatar too. */

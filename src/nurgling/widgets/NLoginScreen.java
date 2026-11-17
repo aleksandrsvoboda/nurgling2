@@ -78,6 +78,8 @@ public class NLoginScreen extends LoginScreen {
 
     public NLoginScreen(String hostname) {
         super(hostname);
+        /* decode the character screen's art now, so the switch after logging in does not stall on it */
+        nurgling.widgets.charsel.CharselBridge.preload();
         discordBtn = add(new IButton("nurgling/hud/buttons/discord/", "u", "d", "h") {
             @Override
             public void click() {
@@ -91,6 +93,14 @@ public class NLoginScreen extends LoginScreen {
         statusbar = add(new NLoginStatusBar(HttpStatus.mond.get(), sz.x - (2 * MARGIN)));
         layout();
         startVersionCheck();
+    }
+
+    /* Upload the character screen's art under the login art (see CharselBridge.warm), so the
+     * switch after logging in has it ready on its first frame. */
+    @Override
+    public void draw(GOut g) {
+        nurgling.widgets.charsel.CharselBridge.warm(g);
+        super.draw(g);
     }
 
     /* Both are called from the LoginScreen constructor, before this class's fields are set. */

@@ -55,7 +55,11 @@ public class Img extends Widget {
 
     /** The art painted for the account: with the dreamcatchers if verified, the coin if subscribed. */
     public static Tex getCharselBg(boolean verified, boolean subscribed) {
-	int i = (verified ? 1 : 0) | (subscribed ? 2 : 0);
+	return(getCharselBg((verified ? 1 : 0) | (subscribed ? 2 : 0)));
+    }
+
+    /** The same by variant index: bit 1 verified, bit 2 subscribed. */
+    public static Tex getCharselBg(int i) {
 	if(charselBgs[i] == null)
 	    charselBgs[i] = Resource.loadtex(CHARSEL_BG_NAMES[i]);
 	return(charselBgs[i]);
