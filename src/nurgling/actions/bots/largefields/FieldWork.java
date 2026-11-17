@@ -472,7 +472,8 @@ final class FieldWork {
                     return false;
                 if (Finder.findGob(item.id) == null)
                     continue;
-                pickUp(item);
+                if (!pickUp(item))
+                    return false;
             }
         }
         return store();
@@ -497,8 +498,15 @@ final class FieldWork {
         return best;
     }
 
-    /** Shift + right click, as NUtils.takeFromEarth (takes every one of the kind around), with a time limit on the wait. */
-    private void pickUp(Gob item) throws InterruptedException {
+    /**
+     * Shift + right click, as NUtils.takeFromEarth (takes every one of the kind around), with a
+     * time limit on the wait. Whatever ends up in the hand instead of the inventory (no room for
+     * it) goes into the inventory if it fits, else back on the ground before a store trip: with
+     * something in hand no further pickup works, and the bot would look stuck.
+     *
+     * @return false (error set) when the store trip fails
+     */
+    private boolean pickUp(Gob item) throws InterruptedException {
         if (item.rc.dist(gui.map.player().rc) > MCache.tilesz2.x)
             new PathFinder(item).run(gui);
         gui.map.wdgmsg("click", Coord.z, item.rc.floor(posres), 3, 0, 1, (int) item.id, item.rc.floor(posres), 0, -1);
@@ -507,6 +515,16 @@ final class FieldWork {
         if (gone.timedOut)
             skipped.add(item.id);
         NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
+        if (gui.vhand == null)
+            return true;
+        if (gui.getInventory().getNumberFreeCoord(gui.vhand) > 0) {
+            NUtils.dropToInv();
+            return true;
+        }
+        NUtils.drop(gui.vhand);
+        NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
+        skipped.remove(item.id);
+        return unloadTrip();
     }
 
     /**
@@ -549,20 +567,8 @@ final class FieldWork {
                 return false;
             if (Finder.findGob(item.id) == null)
                 continue;
-            pickUp(item);
-            if (gui.vhand != null) {
-                // It didn't fit after all: into the inventory if it can go, else back on the
-                // ground, store the load, and pick it up again on a later round.
-                if (gui.getInventory().getNumberFreeCoord(gui.vhand) > 0) {
-                    NUtils.dropToInv();
-                } else {
-                    NUtils.drop(gui.vhand);
-                    NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
-                    skipped.remove(item.id);
-                    if (!unloadTrip())
-                        return false;
-                }
-            }
+            if (!pickUp(item))
+                return false;
         }
         stores.cutWhole(gui);
         return true;
@@ -570,7 +576,7 @@ final class FieldWork {
 
     /**
      * How many more uncut heads fit: measured on one already carried (getNumberFreeCoord sizes it
-     * from its sprite); before the first is picked up, from the crop's assumed size.
+     * from its sprite); before the first is picked up, from the crop's known size.
      */
     private int roomForWhole() throws InterruptedException {
         ArrayList<WItem> held = gui.getInventory().getItems(crop.whole.alias);
