@@ -67,14 +67,19 @@ final class FieldTasks {
     }
 
     /**
-     * Until every soil tile of an inclusive area holds something, or the time limit. Same count
-     * as nurgling.tasks.WaitGobsInField, with a limit so an unplantable tile can't hang the bot.
+     * Until every soil tile of an inclusive area holds something. Same count as
+     * nurgling.tasks.WaitGobsInField, but it also ends when planting has stopped - no new tile for
+     * {@link #IDLE_MS} - or at the hard limit, so a tile that won't take a seed costs a few seconds
+     * instead of hanging the bot. Unplanted tiles are picked up by the block's next planting pass.
      */
     static final class Planted extends NTask {
+        static final long IDLE_MS = 3000;
         private final Area area;
         private final int count;
         private final String soil;
         private final long until;
+        private long lastChange = System.currentTimeMillis();
+        int planted = -1;
         boolean timedOut = false;
 
         Planted(Area area, int count, String soil, long limitMs) {
@@ -92,9 +97,14 @@ final class FieldTasks {
                 for (int j = 0; j <= area.br.y - area.ul.y; j++)
                     if (!tiles[i][j].isFree && NParser.checkName(tiles[i][j].name, soil))
                         num++;
+            long now = System.currentTimeMillis();
+            if (num != planted) {
+                planted = num;
+                lastChange = now;
+            }
             if (num >= count)
                 return true;
-            if (System.currentTimeMillis() > until) {
+            if (now - lastChange > IDLE_MS || now > until) {
                 timedOut = true;
                 return true;
             }

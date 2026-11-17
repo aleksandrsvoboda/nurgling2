@@ -745,7 +745,9 @@ final class FieldWork {
         FieldTasks.Planted planted = new FieldTasks.Planted(area, total, soil, 20000);
         NUtils.getUI().core.addTask(planted);
         if (planted.timedOut)
-            System.out.println("[LargeField] cell " + area.ul + " was not fully planted in time");
+            System.out.println("[LargeField] cell " + area.ul + "-" + area.br + ": planting stopped at "
+                    + planted.planted + " of " + total + " soil tiles occupied (" + count + " were free; planted from "
+                    + ((NGItem) stack.item).name() + (src.stacked ? ", stacked" : ", one item per tile") + ")");
         NUtils.getUI().core.addTask(new FieldTasks.Pause(200));
         if (!gui.hand.isEmpty())
             NUtils.dropToInv();
