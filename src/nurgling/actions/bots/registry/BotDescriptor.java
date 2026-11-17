@@ -1,5 +1,6 @@
 package nurgling.actions.bots.registry;
 
+import haven.PUtils;
 import haven.Resource;
 import haven.Widget;
 import nurgling.actions.Action;
@@ -140,9 +141,12 @@ public class BotDescriptor {
         return ICON_BASE_DIR + iconPath + "/" + state;
     }
 
-    /** Uses these images instead of the iconPath resources, for bots whose art isn't in the client. */
+    /**
+     * Uses these images instead of the iconPath resources, for bots whose art isn't in the client. They are
+     * converted to the client's byte RGBA form, which the icon scalers (PUtils.convolvedown) require.
+     */
     public BotDescriptor images(BufferedImage up, BufferedImage down, BufferedImage hover) {
-        this.images = new BufferedImage[] {up, down, hover};
+        this.images = new BufferedImage[] {PUtils.coercergba(up, false), PUtils.coercergba(down, false), PUtils.coercergba(hover, false)};
         return this;
     }
 
