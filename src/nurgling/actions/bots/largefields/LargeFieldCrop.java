@@ -52,7 +52,10 @@ final class LargeFieldCrop {
         final boolean cutWhenHalfFull;
         /** The piece is required to have a put area (the regular pumpkin/watermelon farmers refuse to run without one). */
         final boolean pieceRequired;
-        /** Inventory cells one uncut item takes, assumed until the first one held shows its real size. */
+        /**
+         * Inventory cells one uncut item takes, assumed until the first one held shows its real
+         * size. Checked both ways round, as which way an item lies isn't known before it is held.
+         */
         final haven.Coord size;
 
         Whole(NAlias alias, String verb, boolean cutWhenHalfFull, boolean pieceRequired, haven.Coord size) {
@@ -123,7 +126,7 @@ final class LargeFieldCrop {
         add(new LargeFieldCrop("white_onion", "White Onion", "plants/whiteonion", null));
         add(new LargeFieldCrop("garlic", "Garlic", "plants/garlic", null));
         add(whole("lettuce", "Lettuce", "plants/lettuce",
-                new Whole(new NAlias("items/lettucehead", "Head of Lettuce"), "Split", true, false, new haven.Coord(1, 1)), "Lettuce Leaf"));
+                new Whole(new NAlias("items/lettucehead", "Head of Lettuce"), "Split", true, false, new haven.Coord(1, 2)), "Lettuce Leaf"));
         add(whole("pumpkin", "Pumpkin", "plants/pumpkin",
                 new Whole(new NAlias(Arrays.asList("items/pumpkin", "Pumpkin"), Arrays.asList("plants", "seed", "flesh")), "Slice", false, true, new haven.Coord(2, 2)), "Pumpkin Flesh"));
         add(whole("watermelon", "Watermelon", "plants/watermelon",
