@@ -355,6 +355,8 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	    break retry;
 	} while(true);
 	ui.destroy(1);
+	/* Nurgling: building the session's UI takes a moment, and this UI would draw black meanwhile. */
+	nurgling.widgets.charsel.CharselBridge.cover(ui);
 	haven.error.ErrorHandler.setprop("usr", sess.user.name);
 	return(createRemoteUI(sess));
     }

@@ -430,8 +430,12 @@ public class Composited implements RenderTree.Node, EquipTarget {
 		mod = new Model(mr.m, md.id);
 		if(mr.info.containsKey("cz"))
 		    mod.z = Utils.iv(mr.info.get("cz"));
-		for(ResData lres : md.tex)
-		    mod.addlay(Material.fromres(matowner, lres.res.get(), new MessageBuf(lres.sdt)));
+		for(ResData lres : md.tex) {
+		    Resource mres = lres.res.get();
+		    Material mat = Material.fromres(matowner, mres, new MessageBuf(lres.sdt));
+		    /* Nurgling: the plague skin swaps the hearthling body's texture. */
+		    mod.addlay(nurgling.tools.PlagueSkin.material(this, mres, mat));
+		}
 		md.real = mod;
 	    }
 	    ret.add(mod);
@@ -555,7 +559,19 @@ public class Composited implements RenderTree.Node, EquipTarget {
 	RUtils.readd(slots, this::parts, () -> {this.mod = pmod;});
 	cmod = new ArrayList<MD>(mod);
     }
-    
+
+    /* Nurgling: rebuilds the current mods with fresh materials, which chmod() skips because the
+     * descriptions are unchanged. Used when the plague skin setting is toggled. */
+    public void remat() {
+	List<MD> fresh = new ArrayList<MD>(cmod.size());
+	for(MD md : cmod)
+	    fresh.add(md.clone());
+	Collection<Model> pmod = this.mod;
+	this.mod = nmod(fresh);
+	RUtils.readd(slots, this::parts, () -> {this.mod = pmod;});
+	cmod = fresh;
+    }
+
     public void chequ(List<ED> equ) {
 	if(equ.equals(cequ))
 	    return;

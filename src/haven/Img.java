@@ -42,35 +42,27 @@ public class Img extends Widget {
     private static final String CHARSEL_BG_RES = "gfx/ccscr";
     private static final String CHARSEL_VERIFY_RES = "gfx/ccver";
     private static final String CHARSEL_SUB_RES = "gfx/ccsub";
-    private static Tex charselBgWorld16 = null;
-    private static Tex charselBgWorld162 = null;
+    /* indexed by (verified ? 1 : 0) | (subscribed ? 2 : 0) */
+    private static final Tex[] charselBgs = new Tex[4];
+    private static final String[] CHARSEL_BG_NAMES = {"nurgling/hud/nurgle", "nurgling/hud/nurgle_v", "nurgling/hud/nurgle_s", "nurgling/hud/nurgle_sv"};
     private static Tex verifyTex = null;
     private static Tex subTex = null;
     
-    private static Tex getCharselBgWorld16() {
-	if(charselBgWorld16 == null)
-	    charselBgWorld16 = Resource.loadtex("nurgling/hud/world16");
-	return charselBgWorld16;
-    }
-    
-    private static Tex getCharselBgWorld162() {
-	if(charselBgWorld162 == null)
-	    charselBgWorld162 = Resource.loadtex("nurgling/hud/world162");
-	return charselBgWorld162;
-    }
-    
-    /** Get background texture based on selected world */
+    /** Nurgling's character-selection art: the plague swamp, the same for every world. */
     public static Tex getCharselBg() {
-	return(getCharselBg((String) nurgling.NConfig.get(nurgling.NConfig.Key.selectedWorld)));
+	return(getCharselBg(false, false));
     }
 
-    /** Background for a world label; null (all worlds) and unknown worlds get the default art. */
-    public static Tex getCharselBg(String world) {
-	// The current newest world (internally "16.2") is reported by the server
-	// with the disc label "World 16.1"; accept either label for its background.
-	if(world != null && (world.contains("16.1") || world.contains("16.2")))
-	    return getCharselBgWorld162();
-	return getCharselBgWorld16();
+    /** The art painted for the account: with the dreamcatchers if verified, the coin if subscribed. */
+    public static Tex getCharselBg(boolean verified, boolean subscribed) {
+	return(getCharselBg((verified ? 1 : 0) | (subscribed ? 2 : 0)));
+    }
+
+    /** The same by variant index: bit 1 verified, bit 2 subscribed. */
+    public static Tex getCharselBg(int i) {
+	if(charselBgs[i] == null)
+	    charselBgs[i] = Resource.loadtex(CHARSEL_BG_NAMES[i]);
+	return(charselBgs[i]);
     }
     
     
@@ -137,6 +129,11 @@ public class Img extends Widget {
 
     public void draw(GOut g) {
 	g.image(img, Coord.z);
+    }
+
+    /* Nurgling: the picture's pixels, when it has them (the character screen builds hover art from them). */
+    public BufferedImage image() {
+	return(rimg);
     }
 
     public Img(Tex img) {

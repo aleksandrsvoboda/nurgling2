@@ -48,6 +48,23 @@ public class GraphicsSettings extends Panel {
 	bridge.set(haven.iosys.tk.RendererPref::bridge);
 	prev = checkbox(cont, prev, bridge);
 	prev = cont.add(new Label(L10n.get("gfx.bridge.note")), prev.pos("bl").adds(15, 2));
+	CheckBox plague = new CheckBox(L10n.get("gfx.plagueskin"));
+	plague.state(nurgling.tools.PlagueSkin::enabled);
+	plague.set(on -> {
+		nurgling.NConfig.set(nurgling.NConfig.Key.plagueSkin, on);
+		/* Bodies already built keep their skin until told to rebuild. */
+		if((ui != null) && (ui.sess != null)) {
+		    synchronized(ui.sess.glob.oc) {
+			for(Gob gob : ui.sess.glob.oc) {
+			    Drawable d = gob.getattr(Drawable.class);
+			    if(d instanceof Composite)
+				((Composite)d).remat();
+			}
+		    }
+		}
+	    });
+	prev = checkbox(cont, prev, plague);
+	prev = cont.add(new Label(L10n.get("gfx.plagueskin.note")), prev.pos("bl").adds(15, 2));
 	prev = check(cont, prev, "gfx.enabled", s -> s.enabled, "enabled");
 	prev = cont.add(new Label("") {
 		private Boolean shown = null;
