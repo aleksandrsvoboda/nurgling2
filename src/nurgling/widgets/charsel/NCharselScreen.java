@@ -5,10 +5,10 @@ import haven.render.Location;
 import haven.render.Projection;
 import nurgling.NCharlist;
 import nurgling.NConfig;
-import nurgling.conf.FontSettings;
 import nurgling.conf.NCharTags;
 import nurgling.plugins.NPluginManager;
 import nurgling.widgets.NAvaview;
+import nurgling.widgets.login.NActionLink;
 import nurgling.widgets.login.NBackdrop;
 import nurgling.widgets.login.NLoginTheme;
 
@@ -73,7 +73,7 @@ public class NCharselScreen extends Widget {
     /* Drag-to-spin state for the avatar. */
     private Avaview avaview;
     /* Plugin additions: links under the list, and at most one panel shown in the list's place. */
-    private final List<ActionLink> actions = new ArrayList<>();
+    private final List<NActionLink> actions = new ArrayList<>();
     private Widget panel;
     private boolean pluginsNotified = false;
     private UI.Grab rotgrab = null;
@@ -238,7 +238,7 @@ public class NCharselScreen extends Widget {
             list.raise();
         if (panel != null)
             panel.raise();
-        for (ActionLink a : actions)
+        for (NActionLink a : actions)
             a.raise();
     }
 
@@ -278,7 +278,7 @@ public class NCharselScreen extends Widget {
 
     /** Adds a link under the character list's footer. For plugins, from {@code NPlugin.onCharsel}. */
     public void addAction(String label, Runnable action) {
-        ActionLink a = add(new ActionLink(label, action), Coord.z);
+        NActionLink a = add(new NActionLink(label, action), Coord.z);
         actions.add(a);
         if (panel != null)
             a.hide();
@@ -315,6 +315,11 @@ public class NCharselScreen extends Widget {
         return (panel);
     }
 
+    /** The character list (its {@code chars} fill in as the server sends them; "play" goes to it), or null once a character is chosen. */
+    public NCharlist charlist() {
+        return (list);
+    }
+
     /** The server's hidden "New character" button, or null before it arrives. */
     public IButton newCharButton() {
         return (newchar);
@@ -327,7 +332,7 @@ public class NCharselScreen extends Widget {
             else
                 list.hide();
         }
-        for (ActionLink a : actions) {
+        for (NActionLink a : actions) {
             if (shown)
                 a.show();
             else
@@ -342,7 +347,7 @@ public class NCharselScreen extends Widget {
         if (panel != null)
             panel.move(Coord.of(lx, ly));
         int ax = lx;
-        for (ActionLink a : actions) {
+        for (NActionLink a : actions) {
             a.move(Coord.of(ax, ly + NCharlist.H + UI.scale(8)));
             ax += a.sz.x + UI.scale(16);
         }
@@ -673,41 +678,6 @@ public class NCharselScreen extends Widget {
     }
 
     /** A plugin's entry under the list: accent-coloured text, underlined while hovered. */
-    private static class ActionLink extends Widget {
-        private static final Text.Foundry fnd = new Text.Foundry(FontSettings.getOpenSansSemibold(), 12, NLoginTheme.accent).aa(true);
-        private final Text text;
-        private final Runnable action;
-        private boolean hover = false;
-
-        ActionLink(String label, Runnable action) {
-            super(Coord.z);
-            this.text = fnd.render(label);
-            this.action = action;
-            resize(text.sz().add(0, UI.scale(2)));
-        }
-
-        public void draw(GOut g) {
-            g.image(text.tex(), Coord.z);
-            if (hover) {
-                g.chcolor(NLoginTheme.accent);
-                g.frect(Coord.of(0, text.sz().y), Coord.of(text.sz().x, UI.scale(1)));
-                g.chcolor();
-            }
-        }
-
-        public void mousemove(MouseMoveEvent ev) {
-            hover = ev.c.isect(Coord.z, sz);
-        }
-
-        public boolean mousedown(MouseDownEvent ev) {
-            if (ev.b == 1) {
-                action.run();
-                return (true);
-            }
-            return (super.mousedown(ev));
-        }
-    }
-
     /** Name, then world and last played, under the big avatar, level with the list's footer
      * buttons. Tags and notes are shown in the list rows. */
     private class NamePlate extends Widget {

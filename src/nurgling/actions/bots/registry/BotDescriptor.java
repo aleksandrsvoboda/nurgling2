@@ -1,9 +1,14 @@
 package nurgling.actions.bots.registry;
 
+import haven.Resource;
+import haven.Widget;
 import nurgling.actions.Action;
 import nurgling.i18n.L10n;
+import nurgling.scenarios.BotStep;
 
+import java.awt.image.BufferedImage;
 import java.util.Map;
+import java.util.function.Function;
 
 public class BotDescriptor {
     final static String ICON_BASE_DIR = "nurgling/bots/icons/";
@@ -22,6 +27,10 @@ public class BotDescriptor {
     public final boolean allowedAsForagerStep;
     // Bot menu placement inside its folder; set once by BotRegistry while it registers bots.
     String group = null;
+    /* Up, down and hover images given by code (a plugin brings its own art); null means the iconPath resources. */
+    private volatile BufferedImage[] images = null;
+    /* Builds the scenario step's settings widget; null means StepSettingsPanel's built-in editors. */
+    private volatile Function<BotStep, Widget> stepSettings = null;
 
     public enum BotType {
         RESOURCES,
@@ -129,5 +138,30 @@ public class BotDescriptor {
 
     public String getIconPath(String state) {
         return ICON_BASE_DIR + iconPath + "/" + state;
+    }
+
+    /** Uses these images instead of the iconPath resources, for bots whose art isn't in the client. */
+    public BotDescriptor images(BufferedImage up, BufferedImage down, BufferedImage hover) {
+        this.images = new BufferedImage[] {up, down, hover};
+        return this;
+    }
+
+    /** The image for state "u", "d" or "h": the given images, else the iconPath resource. */
+    public BufferedImage icon(String state) {
+        BufferedImage[] imgs = images;
+        if (imgs != null)
+            return imgs["d".equals(state) ? 1 : "h".equals(state) ? 2 : 0];
+        return Resource.loadsimg(getIconPath(state));
+    }
+
+    /** Gives the step its own settings widget in the scenario editor; it edits the step it is handed. */
+    public BotDescriptor stepSettings(Function<BotStep, Widget> editor) {
+        this.stepSettings = editor;
+        return this;
+    }
+
+    /** The step's own settings widget builder, or null. */
+    public Function<BotStep, Widget> stepSettings() {
+        return stepSettings;
     }
 }

@@ -3,6 +3,8 @@ package nurgling.widgets;
 import haven.*;
 import nurgling.NConfig;
 import nurgling.conf.NCharTags;
+import nurgling.plugins.NPluginManager;
+import nurgling.widgets.login.NActionLink;
 import nurgling.widgets.login.NBackdrop;
 import nurgling.widgets.login.NLoginPanel;
 import nurgling.widgets.login.NLoginStatusBar;
@@ -16,6 +18,8 @@ import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Login screen: the art as it always was, a scrim on its left edge, and on it the login form with
@@ -42,6 +46,13 @@ public class NLoginScreen extends LoginScreen {
     private int formtop = -1;
     /* Vertical room for the form, between the top margin and the status line. */
     private int formmin = 0, formmax = 0;
+    /* Plugin additions: links under the form, and content shown in the form's place. */
+    private final List<NActionLink> actions = new ArrayList<>();
+    private Widget panel = null;
+    private boolean announced = false;
+    /* The server is waiting for credentials and none have been sent since. */
+    private volatile boolean prompt = false;
+    private volatile String lasterr = null;
 
     /**
      * Compares two version strings numerically.
@@ -140,6 +151,16 @@ public class NLoginScreen extends LoginScreen {
         statusbar.move(Coord.of(MARGIN, vbot - statusbar.sz.y - UI.scale(10)));
         formmin = vtop + UI.scale(40);
         formmax = statusbar.c.y - UI.scale(12);
+        if (!actions.isEmpty()) {
+            int ay = formmax - actions.get(0).sz.y, ax = MARGIN;
+            for (NActionLink a : actions) {
+                a.move(Coord.of(ax, ay));
+                ax += a.sz.x + UI.scale(16);
+            }
+            formmax = ay - UI.scale(12);
+        }
+        if (panel != null)
+            panel.move(Coord.of(MARGIN, formmin));
         panel().budget(formmax - formmin);
         formtop = -1;
         placeform();
@@ -163,15 +184,24 @@ public class NLoginScreen extends LoginScreen {
     @Override
     public void uimsg(String msg, Object... args) {
         if (msg == "login") {
-            login.show();
+            if (panel == null)
+                login.show();
             panel().ready();
+            prompt = true;
             if (NConfig.isBotMod())
                 autoPending = true;
+            if (!announced) {
+                announced = true;
+                NPluginManager.onLogin(this);
+            }
         } else if (msg == "prg") {
-            login.show();
+            if (panel == null)
+                login.show();
+            prompt = false;
             panel().busy((String) args[0]);
         } else if (msg == "error") {
             pending = null;
+            lasterr = (String) args[0];
             panel().error((String) args[0]);
         } else {
             super.uimsg(msg, args);
@@ -217,7 +247,69 @@ public class NLoginScreen extends LoginScreen {
 
     private void send(AuthClient.Credentials creds, boolean savepw) {
         pending = creds.authname();
+        prompt = false;
+        lasterr = null;
         wdgmsg("login", creds, savepw);
+    }
+
+    /* ------------------------------------------------------------- plugin additions */
+
+    /** Adds a link under the login form. For plugins, from {@code NPlugin.onLogin}. */
+    public void addAction(String label, Runnable action) {
+        NActionLink a = add(new NActionLink(label, action), Coord.z);
+        actions.add(a);
+        if (panel != null)
+            a.hide();
+        layout();
+    }
+
+    /** The size a panel gets: the form's column on the scrim, down to the links. */
+    public Coord panelSize() {
+        return (Coord.of(NBackdrop.SCRIMW - (2 * MARGIN), Math.max(UI.scale(200), formmax - formmin)));
+    }
+
+    /** Shows {@code w} in the login form's place, replacing any earlier panel, until {@link #closePanel}. */
+    public <T extends Widget> T showPanel(T w) {
+        closePanel();
+        panel = add(w, Coord.z);
+        login.hide();
+        for (NActionLink a : actions)
+            a.hide();
+        layout();
+        return (w);
+    }
+
+    /** Removes the panel, if any, and brings the login form back. */
+    public void closePanel() {
+        if (panel != null) {
+            Widget p = panel;
+            panel = null;
+            p.reqdestroy();
+        }
+        login.show();
+        for (NActionLink a : actions)
+            a.show();
+        layout();
+    }
+
+    /** The panel shown in the form's place, or null. */
+    public Widget shownPanel() {
+        return (panel);
+    }
+
+    /** Logs in as the form's Log in button does, without saving anything. Send only while {@link #ready}. */
+    public void login(AuthClient.Credentials creds) {
+        submit(creds, false);
+    }
+
+    /** True while the server is waiting for credentials and none have been sent. */
+    public boolean ready() {
+        return (prompt);
+    }
+
+    /** The server's last login error since the last attempt was sent, or null. */
+    public String lastError() {
+        return (lasterr);
     }
 
     /* The server only takes the login screen down once the connection is made. */
