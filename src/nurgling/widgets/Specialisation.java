@@ -88,6 +88,7 @@ public class Specialisation extends Window
         tarkiln,
         boneforash,
         blockforash,
+        branchforash,
         readyHides,
         crucibles,
         chicken,
@@ -188,6 +189,7 @@ public class Specialisation extends Window
         specialisation.add(new SpecialisationItem(SpecName.tarkiln.toString(),"Tarkilns",Resource.loadsimg("nurgling/categories/tarkiln")));
         specialisation.add(new SpecialisationItem(SpecName.boneforash.toString(),"Bones for Ash",Resource.loadsimg("nurgling/categories/boneash")));
         specialisation.add(new SpecialisationItem(SpecName.blockforash.toString(),"Block for Ash",Resource.loadsimg("nurgling/categories/block")));
+        specialisation.add(new SpecialisationItem(SpecName.branchforash.toString(),"Branches for Ash",Resource.loadsimg("nurgling/categories/fuel")));
         specialisation.add(new SpecialisationItem(SpecName.chicken.toString(),"Chicken",Resource.loadsimg("nurgling/categories/chicken")));
         specialisation.add(new SpecialisationItem(SpecName.rabbit.toString(),"Rabbit",Resource.loadsimg("nurgling/categories/rabbit_buck")));
         specialisation.add(new SpecialisationItem(SpecName.incubator.toString(),"Chick Incubator",Resource.loadsimg("nurgling/categories/cincub")));
