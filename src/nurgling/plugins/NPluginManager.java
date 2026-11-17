@@ -2,6 +2,7 @@ package nurgling.plugins;
 
 import nurgling.NConfig;
 import nurgling.NGameUI;
+import nurgling.widgets.NLoginScreen;
 import nurgling.widgets.charsel.NCharselScreen;
 
 import java.io.File;
@@ -73,6 +74,18 @@ public class NPluginManager {
                 p.onCharsel(screen);
             } catch (RuntimeException | LinkageError e) {
                 System.out.println("[Plugins] onCharsel error in " + p.name() + ": " + e);
+            }
+        }
+    }
+
+    /** Called when a login screen first asks for credentials; notifies every loaded plugin. */
+    public static synchronized void onLogin(NLoginScreen screen) {
+        loadAll();
+        for (NPlugin p : plugins) {
+            try {
+                p.onLogin(screen);
+            } catch (RuntimeException | LinkageError e) {
+                System.out.println("[Plugins] onLogin error in " + p.name() + ": " + e);
             }
         }
     }

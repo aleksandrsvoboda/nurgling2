@@ -73,7 +73,7 @@ public abstract class MenuSearch extends Window {
 	    if(btn != null)
 		return btn.img();
 	    try {
-		return Resource.loadsimg(bot.getUpIconPath());
+		return bot.icon("u");
 	    } catch(Exception e) {
 		return null;
 	    }

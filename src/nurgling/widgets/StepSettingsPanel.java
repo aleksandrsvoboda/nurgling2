@@ -59,6 +59,10 @@ public class StepSettingsPanel extends Widget {
             add(new Label("Unknown bot."), new Coord(UI.scale(8), UI.scale(10)));
             return;
         }
+        if (desc.stepSettings() != null) {
+            add(desc.stepSettings().apply(step), new Coord(UI.scale(8), UI.scale(10)));
+            return;
+        }
         int y = UI.scale(10);
         boolean hasAnySetting = false;
         if (desc.id.equals("goto_area")) {

@@ -1,6 +1,7 @@
 package nurgling.plugins;
 
 import nurgling.NGameUI;
+import nurgling.widgets.NLoginScreen;
 import nurgling.widgets.charsel.NCharselScreen;
 
 /**
@@ -31,4 +32,11 @@ public interface NPlugin {
      * own content in the list's place with {@link NCharselScreen#showPanel}. Optional.
      */
     default void onCharsel(NCharselScreen screen) {}
+
+    /**
+     * Called once for each login screen, when the server first asks it for credentials. Plugins can add
+     * links with {@link NLoginScreen#addAction}, show their own content in the form's place with
+     * {@link NLoginScreen#showPanel}, and log in with {@link NLoginScreen#login}. Optional.
+     */
+    default void onLogin(NLoginScreen screen) {}
 }

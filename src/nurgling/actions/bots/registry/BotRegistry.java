@@ -30,7 +30,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class BotRegistry {
-    private static final List<BotDescriptor> bots = new ArrayList<>();
+    // Copy-on-write: plugins may register while the UI thread is reading the list.
+    private static final List<BotDescriptor> bots = new java.util.concurrent.CopyOnWriteArrayList<>();
     // Declared before the static block below, which fills it.
     private static final Map<BotDescriptor.BotType, List<String>> groupOrder = new EnumMap<>(BotDescriptor.BotType.class);
 
@@ -406,6 +407,19 @@ public class BotRegistry {
     /** Group keys of a bot menu folder, in display order (without the trailing "Other" group). */
     public static List<String> groupsOf(BotDescriptor.BotType type) {
         return Collections.unmodifiableList(groupOrder.getOrDefault(type, Collections.emptyList()));
+    }
+
+    /**
+     * Adds a bot from outside the client (a plugin). It shows wherever its flags allow, like the built-in
+     * ones. Returns false, adding nothing, when a bot with that id already exists.
+     */
+    public static synchronized boolean register(BotDescriptor bot) {
+        if (byId(bot.id) != null) {
+            System.err.println("[BotRegistry] not registering '" + bot.id + "': the id is taken");
+            return false;
+        }
+        bots.add(bot);
+        return true;
     }
 
     public static BotDescriptor byId(String id) {

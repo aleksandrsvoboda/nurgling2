@@ -284,7 +284,7 @@ public class BotsInterruptWidget extends Widget {
 
         private Tex botIcon(BotDescriptor d) {
             try {
-                return new TexI(PUtils.convolvedown(Resource.loadsimg("nurgling/bots/icons/" + d.iconPath + "/u"), new Coord(ICON, ICON), CharWnd.iconfilter));
+                return new TexI(PUtils.convolvedown(d.icon("u"), new Coord(ICON, ICON), CharWnd.iconfilter));
             } catch (Resource.NoSuchResourceException e) {
                 return null;
             }
