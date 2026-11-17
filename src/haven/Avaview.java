@@ -45,6 +45,8 @@ public class Avaview extends PView {
     private List<Composited.MD> cmod = null;
     private List<Composited.ED> cequ = null;
     private final String camnm;
+    /* Nurgling: the view's light, so a subclass can replace it (the character screen's mood light). */
+    protected RenderTree.Slot light;
 
     @RName("av")
     public static class $_ implements Factory {
@@ -69,7 +71,7 @@ public class Avaview extends PView {
 	super(sz);
 	this.camnm = camnm;
 	this.avagob = avagob;
-	basic.add(new DirLight(Color.WHITE, Color.WHITE, Color.WHITE, new Coord3f(1, 1, 1).norm()), null);
+	light = basic.add(new DirLight(Color.WHITE, Color.WHITE, Color.WHITE, new Coord3f(1, 1, 1).norm()), null);
 	basic.add(new Outlines(false));
 	makeproj();
     }
@@ -220,6 +222,21 @@ public class Avaview extends PView {
 	if(compslot == null) {
 	    compslot = basic.add(comp);
 	}
+    }
+
+    /* Nurgling: drops the built model so the next draw builds it again, materials included. The
+     * description is cloned because its mods cache the models built from them. */
+    protected void rebuild() {
+	if(compslot != null) {
+	    compslot.remove();
+	    compslot = null;
+	}
+	comp = null;
+	cmod = null;
+	cequ = null;
+	lbase = null;
+	if(avadesc != null)
+	    avadesc = avadesc.clone();
     }
 
     public void tick(double dt) {

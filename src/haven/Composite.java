@@ -45,6 +45,8 @@ public class Composite extends Drawable implements EquipTarget {
     public List<ED> nequ;
     private Collection<ResData> nposes = null, tposes = null;
     private boolean nposesold, retainequ = false;
+    /* Nurgling: set when the plague skin setting changes; the next tick rebuilds the materials. */
+    private volatile boolean remat = false;
     private float tptime;
     private WrapMode tpmode;
 
@@ -106,7 +108,19 @@ public class Composite extends Drawable implements EquipTarget {
 	}
     }
 
+    /* Nurgling: asks for the body's materials to be rebuilt (plague skin toggled). */
+    public void remat() {
+	remat = true;
+    }
+
     public void ctick(double dt) {
+	if(remat) {
+	    try {
+		comp.remat();
+		remat = false;
+	    } catch(Loading l) {
+	    }
+	}
 	if(nposes != null) {
 	    try {
 		Composited.Poses np = comp.new Poses(loadposes(nposes, comp.skel, nposesold));

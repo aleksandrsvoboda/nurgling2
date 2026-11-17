@@ -194,15 +194,6 @@ public class NCharlist extends Charlist {
         return (((s != null) && getDisplayChars().contains(s)) ? s : null);
     }
 
-    /** World whose art the backdrop shows: the world tab, else the selected character's world. */
-    public String artWorld() {
-        String w = effectiveWorld();
-        if (w != null)
-            return (w);
-        Char s = selected();
-        return ((s != null) ? s.disc : null);
-    }
-
     public boolean multiworld() {
         return (multiworld);
     }
@@ -231,6 +222,11 @@ public class NCharlist extends Charlist {
     /** The server's verify/subscription images; shown as badges in the heading. */
     public void badgeSources(List<Img> imgs) {
         badgesrc = imgs;
+    }
+
+    /** Middle of the footer button row (Log out, New character, Play), in this widget's coordinates. */
+    public int footerMid() {
+        return (playbtn.c.y + playbtn.sz.y / 2);
     }
 
     /** The server's "New character" image button; the footer button clicks it. */
@@ -495,7 +491,9 @@ public class NCharlist extends Charlist {
          * name and disc are drawn by drawbox() instead and stay hidden. */
         @Override
         protected void buildLayout() {
-            ava = add(new NAvaview(AVSZ, -1, "avacam"), Coord.of(UI.scale(12), (sz.y - AVSZ.y) / 2));
+            NAvaview view = new NAvaview(AVSZ, -1, "avacam");
+            view.plague(chr.name);
+            ava = add(view, Coord.of(UI.scale(12), (sz.y - AVSZ.y) / 2));
             name = add(new ILabel(chr.name, NLoginTheme.cname), Coord.z);
             name.hide();
             disc = add(new ILabel("", NLoginTheme.meta), Coord.z);

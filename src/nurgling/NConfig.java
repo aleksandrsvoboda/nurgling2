@@ -207,6 +207,9 @@ public class NConfig
         squadGroups,
         squadAutoView,
         decoupledRender,
+        plagueSkin,
+        nurglingify,
+        charselSmoke,
         pathLineWidth,
         pathLineColor,
         parasiteBotEnabled,
@@ -508,6 +511,9 @@ public class NConfig
         conf.put(Key.squadGroups, "");
         conf.put(Key.squadAutoView, true);
         conf.put(Key.decoupledRender, false);
+        conf.put(Key.plagueSkin, false);
+        conf.put(Key.nurglingify, false);
+        conf.put(Key.charselSmoke, true);
         conf.put(Key.pathLineWidth, 4);
         conf.put(Key.pathLineColor, new Color(255, 255, 0));  // Yellow
 
