@@ -144,6 +144,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("wrap", BotDescriptor.BotType.PRODUCTIONS, "Wrap Action", "Wraps items.", true, true, WrapAction.class, "wrap", true));
         bots.add(new BotDescriptor("bonestoash", BotDescriptor.BotType.PRODUCTIONS, "Bone Ash", "Burns bones to ash.", true, true, BoneAshAction.class, "bonestoash", true));
         bots.add(new BotDescriptor("ash", BotDescriptor.BotType.PRODUCTIONS, "Block Ash", "Blocks ash.", true, true, BlockAshAction.class, "ash", false));
+        bots.add(new BotDescriptor("ovenash", BotDescriptor.BotType.PRODUCTIONS, "bot.ovenash.title", "bot.ovenash.desc", true, true, OvenAshAction.class, "ovenash", false));
         bots.add(new BotDescriptor("lye", BotDescriptor.BotType.PRODUCTIONS, "Lye Boiler", "Boils lye.", true, true, LyeBoiler.class, "lye", false));
         bots.add(new BotDescriptor("steel", BotDescriptor.BotType.PRODUCTIONS, "Steel Action", "Makes steel.", true, true, SteelAction.class, "steel", false));
         bots.add(new BotDescriptor("fineryforge", BotDescriptor.BotType.PRODUCTIONS, "Forging ", "Forging.", true, true, FFAction.class, "fineryforge", false));
@@ -355,7 +356,7 @@ public class BotRegistry {
         group("metal", "smelter", "steel", "fineryforge");
         group("food", "backer", "dryedfish", "fishroast", "pickling", "grapejuicer", "smoking", "gelatin");
         group("animal_products", "butcher", "hides", "leather", "bonestoash");
-        group("materials", "brick", "tarkiln", "branch", "ash", "lye", "wrap", "tabaco");
+        group("materials", "brick", "tarkiln", "branch", "ash", "ovenash", "lye", "wrap", "tabaco");
         group("silk", "mulberry_leaf_refiller", "silk_production");
         group("special_farms", "irrlight", "smokering", "ugardenpot");
 
