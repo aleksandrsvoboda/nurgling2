@@ -52,12 +52,15 @@ final class LargeFieldCrop {
         final boolean cutWhenHalfFull;
         /** The piece is required to have a put area (the regular pumpkin/watermelon farmers refuse to run without one). */
         final boolean pieceRequired;
+        /** Inventory cells one uncut item takes, assumed until the first one held shows its real size. */
+        final haven.Coord size;
 
-        Whole(NAlias alias, String verb, boolean cutWhenHalfFull, boolean pieceRequired) {
+        Whole(NAlias alias, String verb, boolean cutWhenHalfFull, boolean pieceRequired, haven.Coord size) {
             this.alias = alias;
             this.verb = verb;
             this.cutWhenHalfFull = cutWhenHalfFull;
             this.pieceRequired = pieceRequired;
+            this.size = size;
         }
     }
 
@@ -120,11 +123,11 @@ final class LargeFieldCrop {
         add(new LargeFieldCrop("white_onion", "White Onion", "plants/whiteonion", null));
         add(new LargeFieldCrop("garlic", "Garlic", "plants/garlic", null));
         add(whole("lettuce", "Lettuce", "plants/lettuce",
-                new Whole(new NAlias("items/lettucehead", "Head of Lettuce"), "Split", true, false), "Lettuce Leaf"));
+                new Whole(new NAlias("items/lettucehead", "Head of Lettuce"), "Split", true, false, new haven.Coord(1, 1)), "Lettuce Leaf"));
         add(whole("pumpkin", "Pumpkin", "plants/pumpkin",
-                new Whole(new NAlias(Arrays.asList("items/pumpkin", "Pumpkin"), Arrays.asList("plants", "seed", "flesh")), "Slice", false, true), "Pumpkin Flesh"));
+                new Whole(new NAlias(Arrays.asList("items/pumpkin", "Pumpkin"), Arrays.asList("plants", "seed", "flesh")), "Slice", false, true, new haven.Coord(2, 2)), "Pumpkin Flesh"));
         add(whole("watermelon", "Watermelon", "plants/watermelon",
-                new Whole(new NAlias(Arrays.asList("items/watermelon", "Watermelon"), Arrays.asList("plants", "seed", "slice")), "Slice", false, true), "Watermelon Slice"));
+                new Whole(new NAlias(Arrays.asList("items/watermelon", "Watermelon"), Arrays.asList("plants", "seed", "slice")), "Slice", false, true, new haven.Coord(2, 2)), "Watermelon Slice"));
         LargeFieldCrop champignon = new LargeFieldCrop("champignon", "Champignon", "plants/champignon", null);
         champignon.containerStore = true;
         add(champignon);

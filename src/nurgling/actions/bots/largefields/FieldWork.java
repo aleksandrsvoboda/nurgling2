@@ -513,6 +513,10 @@ final class FieldWork {
      * Lettuce, pumpkin, watermelon: picks up the whole heads and cuts them, as
      * LettucePumpkinAndWatermelonCollector does - lettuce at half full, a pumpkin or watermelon
      * once no other fits.
+     *
+     * Room is checked as a free spot of the item's own size, not as free cells: a pumpkin needs a
+     * 2x2 gap, and scattered single cells left by flesh and seeds don't hold one. Without that the
+     * pumpkin stays in the hand, and with something in hand no further pumpkin can be picked up.
      */
     private boolean collectWhole(Pair<Coord2d, Coord2d> rc) throws InterruptedException {
         LargeFieldCrop.Whole w = crop.whole;
@@ -529,15 +533,49 @@ final class FieldWork {
                 if (w.cutWhenHalfFull ? free <= fits / 2 : free == 0)
                     stores.cutWhole(gui);
             }
-            // A whole pumpkin takes several cells.
-            if (!ensureRoom(4) || !stamina())
+            if (roomForWhole() == 0) {
+                stores.cutWhole(gui);
+                stores.dropHomeless(gui);
+                if (roomForWhole() == 0) {
+                    if (!unloadTrip())
+                        return false;
+                    if (roomForWhole() == 0) {
+                        error = "no room in the inventory for a " + crop.subtype.toLowerCase() + " even after unloading";
+                        return false;
+                    }
+                }
+            }
+            if (!stamina())
                 return false;
             if (Finder.findGob(item.id) == null)
                 continue;
             pickUp(item);
+            if (gui.vhand != null) {
+                // It didn't fit after all: into the inventory if it can go, else back on the
+                // ground, store the load, and pick it up again on a later round.
+                if (gui.getInventory().getNumberFreeCoord(gui.vhand) > 0) {
+                    NUtils.dropToInv();
+                } else {
+                    NUtils.drop(gui.vhand);
+                    NUtils.getUI().core.addTask(new FieldTasks.Pause(300));
+                    skipped.remove(item.id);
+                    if (!unloadTrip())
+                        return false;
+                }
+            }
         }
         stores.cutWhole(gui);
         return true;
+    }
+
+    /**
+     * How many more uncut heads fit: measured on one already carried (getNumberFreeCoord sizes it
+     * from its sprite); before the first is picked up, from the crop's assumed size.
+     */
+    private int roomForWhole() throws InterruptedException {
+        ArrayList<WItem> held = gui.getInventory().getItems(crop.whole.alias);
+        return held.isEmpty() ? gui.getInventory().getNumberFreeCoord(crop.whole.size)
+                : gui.getInventory().getNumberFreeCoord(held.get(0));
     }
 
     private static ArrayList<String> withContainers(List<String> exceptions) {
