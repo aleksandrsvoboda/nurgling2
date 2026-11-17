@@ -53,8 +53,9 @@ final class LargeFieldCrop {
         /** The piece is required to have a put area (the regular pumpkin/watermelon farmers refuse to run without one). */
         final boolean pieceRequired;
         /**
-         * Inventory cells one uncut item takes, assumed until the first one held shows its real
-         * size. Checked both ways round, as which way an item lies isn't known before it is held.
+         * Inventory cells one uncut item takes, as (rows, columns) - the order
+         * NInventory.getNumberFreeCoord(Coord) takes: lettuce 1 row x 2 columns, pumpkin and
+         * watermelon 2x2. Used until one is carried and can be measured.
          */
         final haven.Coord size;
 

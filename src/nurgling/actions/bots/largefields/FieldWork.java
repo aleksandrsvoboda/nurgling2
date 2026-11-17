@@ -576,16 +576,12 @@ final class FieldWork {
 
     /**
      * How many more uncut heads fit: measured on one already carried (getNumberFreeCoord sizes it
-     * from its sprite); before the first is picked up, from the crop's assumed size, counted for
-     * whichever way round it lies (a lettuce head is 1x2).
+     * from its sprite); before the first is picked up, from the crop's known size.
      */
     private int roomForWhole() throws InterruptedException {
         ArrayList<WItem> held = gui.getInventory().getItems(crop.whole.alias);
-        if (!held.isEmpty())
-            return gui.getInventory().getNumberFreeCoord(held.get(0));
-        Coord sz = crop.whole.size;
-        return Math.min(gui.getInventory().getNumberFreeCoord(sz),
-                gui.getInventory().getNumberFreeCoord(new Coord(sz.y, sz.x)));
+        return held.isEmpty() ? gui.getInventory().getNumberFreeCoord(crop.whole.size)
+                : gui.getInventory().getNumberFreeCoord(held.get(0));
     }
 
     private static ArrayList<String> withContainers(List<String> exceptions) {
