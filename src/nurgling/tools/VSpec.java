@@ -1329,6 +1329,8 @@ public class VSpec {
         spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/salvia\",\"name\":\"Sage\"}"));
         spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/thyme\",\"name\":\"Thyme\"}"));
         spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/dill\",\"name\":\"Dill\"}"));
+        spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/tansy\",\"name\":\"Tansy\"}"));
+        spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/bloodstern\",\"name\":\"Blood Stern\"}"));
         categories.put("Spices", spices);
 
         ArrayList<JSONObject> rootVegetables = new ArrayList<>();
