@@ -398,6 +398,7 @@ public class SessionContext {
                             }
                         } catch (Exception e) {
                             // Glob tick failed — non-fatal, gob state may be stale this tick
+                            reportTickFailure("glob tick", e);
                         }
 
                         // Tick the UI (processes widget state, bot actions, etc.)
@@ -408,6 +409,7 @@ public class SessionContext {
                             ui.lastevent = now;
                         } catch (Exception e) {
                             // Widget tick failed — non-fatal
+                            reportTickFailure("ui tick", e);
                         }
                     }
                 }
@@ -425,6 +427,19 @@ public class SessionContext {
         } finally {
             // Clean up thread-local UI when the headless loop exits
             ThreadLocalUI.clear();
+        }
+    }
+
+    /* Headless tick failures are survived, but a widget that throws on every tick stops the rest of
+     * the tree (the map view among them) from ticking. Say so once per kind, with where it came from. */
+    private final java.util.Set<String> reportedTickFailures = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private void reportTickFailure(String where, Exception e) {
+        StackTraceElement[] st = e.getStackTrace();
+        String key = where + ":" + e.getClass().getName() + ":" + ((st.length > 0) ? st[0] : "");
+        if (reportedTickFailures.size() < 20 && reportedTickFailures.add(key)) {
+            System.out.println("[SessionContext] " + getDisplayName() + " (" + sessionId + "): headless " + where + " failed (shown once):");
+            e.printStackTrace(System.out);
         }
     }
 

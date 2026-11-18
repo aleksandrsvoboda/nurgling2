@@ -247,6 +247,8 @@ public final class LoginRun {
             e.state = State.LOADING;
             if (!Waits.until(GAME_MS, () -> inGame(ctx) || !connected(ctx))) {
                 fail(e, "multilogin.why.nogame");
+                e.why = e.why + " (" + missing(ctx) + ")";
+                System.out.println("[LoginRun] " + e.account + ": still missing " + missing(ctx));
                 return;
             }
             if (!connected(ctx)) {
@@ -344,6 +346,25 @@ public final class LoginRun {
             return true;
         } catch (Loading l) {
             return false;
+        }
+    }
+
+    /** Which part of "in game" has not come yet, for the failure message. */
+    private static String missing(SessionContext ctx) {
+        NUI ui = ctx.ui;
+        NGameUI g = (ui == null) ? null : ui.gui;
+        if (g == null)
+            return "no game UI";
+        if (g.map == null)
+            return "no map view";
+        Gob pl = g.map.player();
+        if (pl == null)
+            return "no player";
+        try {
+            g.ui.sess.glob.map.getgridt(pl.rc.floor(MCache.tilesz));
+            return "nothing";
+        } catch (Loading l) {
+            return "map grid under the player not loaded";
         }
     }
 
