@@ -13,12 +13,14 @@ import nurgling.navigation.ChunkPath;
 import nurgling.sessions.BotExecutor;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
-import nurgling.tasks.FindNFlowerMenu;
 import nurgling.tasks.NTask;
+import nurgling.widgets.MilestoneWindowExtension;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 import static haven.OCache.posres;
 
@@ -32,6 +34,10 @@ public final class SquadExecutor {
     static final String PLAYER_RES = "gfx/borka/body";
     private static final long REPORT_MS = 200;
     private static final long FLOWER_WAIT_MS = 30000;
+    /** How long a milestone window is held for the squad's road pick: reading the roads takes a while. */
+    private static final long ROAD_WAIT_MS = 120000;
+    /** A position jump this big is a teleport (as in MilestoneTracker). */
+    private static final double TELEPORT_DIST = 100;
     /** How long an Unreachable / Skipped verdict stays on the panel. */
     private static final long VERDICT_MS = 10000;
 
@@ -47,6 +53,10 @@ public final class SquadExecutor {
         volatile long flowerSeq;
         volatile boolean pickSet;
         volatile String pick;
+        /** The Interact whose milestone window this session holds open, or -1. */
+        volatile long roadSeq = -1;
+        /** The latest road picked for the squad; it can arrive while this character is still walking. */
+        volatile SquadCommand.PickRoad roadPick;
         volatile boolean dirty;
         long lastReport;
 
@@ -153,6 +163,10 @@ public final class SquadExecutor {
             }
             return;
         }
+        if (c instanceof SquadCommand.PickRoad) {
+            st.roadPick = (SquadCommand.PickRoad) c;
+            return;
+        }
         if (c instanceof SquadCommand.SetSpeed) {
             Speedget sg = gui.speedget;
             if (sg != null)
@@ -201,7 +215,7 @@ public final class SquadExecutor {
             }
             start(ctx, st, MemberReport.Status.PATHING, new MoveAction(m.target, st));
         } else if (c instanceof SquadCommand.Interact) {
-            start(ctx, st, MemberReport.Status.INTERACTING, new InteractAction((SquadCommand.Interact) c, st));
+            start(ctx, st, MemberReport.Status.INTERACTING, new InteractAction((SquadCommand.Interact) c, st, ctx.sessionId));
         } else if (c instanceof SquadCommand.Follow) {
             start(ctx, st, MemberReport.Status.FOLLOWING, new FollowAction((SquadCommand.Follow) c, st));
         }
@@ -234,6 +248,15 @@ public final class SquadExecutor {
             t.interrupt();
         st.flowerOptions = null;
         st.dirty = true;
+    }
+
+    /**
+     * Right-click a gob as NUtils.rclickGob does, but with the screen spot of the player's click: the server centres
+     * the windows it opens on it, and NUtils sends (0, 0), the top-left corner, which puts them mostly off screen.
+     */
+    static void rclickGob(NGameUI gui, Gob gob, Coord screen) {
+        Coord pc = (screen == null) ? gui.map.sz.div(2) : screen;
+        gui.map.wdgmsg("click", pc, gob.rc.floor(posres), 3, 0, 0, (int) gob.id, gob.rc.floor(posres), 0, -1);
     }
 
     static void click(NGameUI gui, Coord2d local) {
@@ -310,24 +333,56 @@ public final class SquadExecutor {
         }
     }
 
-    /** Right-click a gob, then hold any flower menu it opens until the squad picks a petal. */
+    /**
+     * Right-click a gob, then hold the flower menu or milestone window it opens until the squad picks a petal or a
+     * road. A milestone opens from wherever the character stands, so a member walks up to one only when it can't see
+     * it, and then stops a few tiles out: the post has one travel spot, which must stay free.
+     */
     static final class InteractAction implements Action {
+        /** From pressing Travel to the road preview: the walk to the post and the loading. */
+        private static final long SCOUT_PREVIEW_MS = 30000, MEMBER_PREVIEW_MS = 15000;
+        /** How long the player may look at the scout's preview before deciding. */
+        private static final long DECIDE_MS = 5 * 60 * 1000;
+        /** A follower's confirming click is repeated this often while its preview stays open. */
+        private static final long CONFIRM_RETRY_MS = 3000;
+        private static final int CONFIRM_TRIES = 5;
+        private static final long ARRIVE_MS = 20000;
+
         private final SquadCommand.Interact cmd;
         private final State st;
+        private final String me;
 
-        InteractAction(SquadCommand.Interact cmd, State st) {
+        InteractAction(SquadCommand.Interact cmd, State st, String me) {
             this.cmd = cmd;
             this.st = st;
+            this.me = me;
         }
 
         @Override
         public Results run(NGameUI gui) throws InterruptedException {
+            try {
+                return interact(gui);
+            } finally {
+                /* However this ends, the next member of a milestone trip may go. */
+                RoadTrip t = SessionManager.getInstance().squad().trip(cmd.seq);
+                if (t != null)
+                    t.leave(me);
+            }
+        }
+
+        private Results interact(NGameUI gui) throws InterruptedException {
+            boolean post = MilestoneWindowExtension.isPost(cmd.resName);
             Gob gob = resolveGob(gui, cmd.gobId, cmd.gobPos, cmd.resName, MCache.tilesz.x);
+            if (gob == null && post && cmd.pathfind && cmd.approach != null) {
+                new MoveAction(cmd.approach, st).run(gui);
+                st.set(MemberReport.Status.INTERACTING);
+                gob = resolveGob(gui, cmd.gobId, cmd.gobPos, cmd.resName, MCache.tilesz.x);
+            }
             if (gob == null) {
                 st.set(MemberReport.Status.UNREACHABLE, L10n.get("squad.why.noobject"));
                 return Results.FAIL();
             }
-            if (cmd.pathfind) {
+            if (cmd.pathfind && !post) {
                 /* Its own side of the object first, when it was given one, so the squad doesn't queue for the same
                  * spot; the right-click then walks the last step. */
                 Coord2d side = (cmd.approach == null) ? null : cmd.approach.localIn(gui.map.glob.map, sessloc(gui));
@@ -339,10 +394,12 @@ public final class SquadExecutor {
             st.flowerSeq = cmd.seq;
             st.pickSet = false;
             st.pick = null;
-            NUtils.rclickGob(gob);
-            FindNFlowerMenu find = new FindNFlowerMenu();
+            FindMenuOrRoad find = new FindMenuOrRoad((NUI) gui.ui, roadWindows(gui));
+            rclickGob(gui, gob, cmd.screen);
             NUtils.addTask(find);
-            NFlowerMenu fm = find.getResult();
+            if (find.road != null)
+                return pickRoad(gui, find.road, gob);
+            NFlowerMenu fm = find.menu;
             if (fm == null) {
                 st.set(MemberReport.Status.IDLE);
                 return Results.SUCCESS();
@@ -372,6 +429,241 @@ public final class SquadExecutor {
             if (st.status == MemberReport.Status.INTERACTING)
                 st.set(MemberReport.Status.IDLE);
             return Results.SUCCESS();
+        }
+
+        /** Hold a milestone window open until the squad picks a road, then take that road from here. */
+        private Results pickRoad(NGameUI gui, Window wnd, Gob post) throws InterruptedException {
+            st.roadSeq = cmd.seq;
+            try {
+                NUtils.addTask(new WaitRoad(st, cmd.seq, wnd, System.currentTimeMillis() + ROAD_WAIT_MS));
+            } finally {
+                st.roadSeq = -1;
+            }
+            SquadCommand.PickRoad p = st.roadPick;
+            if (p == null || p.seq != cmd.seq) {
+                closeHidden(gui, wnd);
+            } else if (p.trip != null && p.trip.scout.equals(me)) {
+                scout(gui, p.trip, post);
+            } else if (p.trip != null) {
+                travelInTurn(gui, wnd, post, p.trip);
+            } else if (p.button != null && wnd.parent != null) {
+                Button b = MilestoneWindowExtension.button(wnd, p.road, p.n, p.button);
+                if (b != null)
+                    b.click();
+                else
+                    st.set(MemberReport.Status.SKIPPED, L10n.get("squad.why.noroad", p.road));
+            }
+            if (st.status == MemberReport.Status.INTERACTING || st.status == MemberReport.Status.QUEUED
+                || st.status == MemberReport.Status.TRAVELLING)
+                st.set(MemberReport.Status.IDLE);
+            return Results.SUCCESS();
+        }
+
+        /**
+         * The player pressed Travel here and decides in this character's preview: go or stay. Watch which it was, so
+         * the rest of the squad follows only when this one went.
+         */
+        private void scout(NGameUI gui, RoadTrip trip, Gob post) throws InterruptedException {
+            st.set(MemberReport.Status.TRAVELLING);
+            Coord2d from = post.rc;
+            long body = gui.map.plgob;
+            WaitPreview preview = new WaitPreview(gui, body, from, System.currentTimeMillis() + SCOUT_PREVIEW_MS);
+            NUtils.addTask(preview);
+            if (!preview.started)
+                return;
+            NUtils.addTask(new WaitBody(gui, System.currentTimeMillis() + DECIDE_MS));
+            trip.scouted(teleported(gui, from));
+        }
+
+        /** Wait for this member's turn, then travel the road and confirm the preview on its own. */
+        private void travelInTurn(NGameUI gui, Window wnd, Gob post, RoadTrip trip) throws InterruptedException {
+            st.set(MemberReport.Status.QUEUED);
+            NUtils.addTask(new WaitTurn(trip, me));
+            if (trip.turn(me) != RoadTrip.Turn.GO) {
+                closeHidden(gui, wnd);
+                return;
+            }
+            st.set(MemberReport.Status.TRAVELLING);
+            Window w = (wnd.parent != null) ? wnd : reopen(gui, post);
+            Button travel = (w == null) ? null : MilestoneWindowExtension.button(w, trip.road, trip.n, "Travel");
+            if (travel == null) {
+                st.set(MemberReport.Status.SKIPPED, L10n.get("squad.why.noroad", trip.road));
+                closeHidden(gui, w);
+                return;
+            }
+            Coord2d from = post.rc;
+            long body = gui.map.plgob;
+            travel.click();
+            WaitPreview preview = new WaitPreview(gui, body, from, System.currentTimeMillis() + MEMBER_PREVIEW_MS);
+            NUtils.addTask(preview);
+            if (!preview.started) {
+                /* Someone is on the travel spot. Stop trying to get there, so this one doesn't block the next. */
+                Gob pl = gui.map.player();
+                if (pl != null)
+                    click(gui, pl.rc);
+                st.set(MemberReport.Status.SKIPPED, L10n.get("squad.why.blocked"));
+                closeHidden(gui, w);
+                return;
+            }
+            /* The player approved this road in the scout's preview, so confirm it here: a left-click anywhere does it.
+             * Click at the camera's point, the road ball, and again while the preview stays open. */
+            for (int i = 0; i < CONFIRM_TRIES && gui.map.plgob < 0; i++) {
+                Coord2d at = gui.map.cc;
+                click(gui, (at == null) ? Coord2d.z : at);
+                NUtils.addTask(new WaitBody(gui, System.currentTimeMillis() + CONFIRM_RETRY_MS));
+            }
+            NUtils.addTask(new WaitBody(gui, System.currentTimeMillis() + ARRIVE_MS));
+            if (!teleported(gui, from))
+                st.set(MemberReport.Status.SKIPPED, L10n.get("squad.why.blocked"));
+            closeHidden(gui, w);
+        }
+
+        /** Right-click the post again for a fresh window; null when none opens. */
+        private Window reopen(NGameUI gui, Gob post) throws InterruptedException {
+            Gob g = resolveGob(gui, post.id, cmd.gobPos, cmd.resName, MCache.tilesz.x);
+            if (g == null)
+                return null;
+            FindMenuOrRoad find = new FindMenuOrRoad((NUI) gui.ui, roadWindows(gui));
+            rclickGob(gui, g, cmd.screen);
+            NUtils.addTask(find);
+            if (find.menu != null)
+                find.menu.chooseOpt("");
+            return find.road;
+        }
+
+        private static boolean teleported(NGameUI gui, Coord2d from) {
+            Gob pl = gui.map.player();
+            return pl != null && isBody(pl) && pl.rc.dist(from) > TELEPORT_DIST;
+        }
+    }
+
+    static boolean isBody(Gob g) {
+        return g.ngob != null && PLAYER_RES.equals(g.ngob.name);
+    }
+
+    /** Close a milestone window nobody can see, so it can't confuse a later milestone bot. One on screen is the player's. */
+    static void closeHidden(NGameUI gui, Window wnd) {
+        if (wnd != null && wnd.parent != null && SessionManager.getInstance().getActiveUI() != gui.ui)
+            wnd.reqclose();
+    }
+
+    /**
+     * The road preview has started. Seen in game: about 4 s after Travel the character's gob goes away and the
+     * session's player gob becomes -1, so the camera follows the map's own point, the road ball. Confirming brings
+     * the same gob id back at the road's end. Another id, resource or a jump away from the post count too.
+     */
+    static final class WaitPreview extends NTask {
+        private final NGameUI gui;
+        private final long body;
+        private final Coord2d post;
+        private final long until;
+        boolean started;
+
+        WaitPreview(NGameUI gui, long body, Coord2d post, long until) {
+            this.gui = gui;
+            this.body = body;
+            this.post = post;
+            this.until = until;
+        }
+
+        @Override
+        public boolean check() {
+            long id = gui.map.plgob;
+            Gob pl = gui.map.player();
+            started = id < 0 || id != body || (pl != null && (!isBody(pl) || pl.rc.dist(post) > TELEPORT_DIST));
+            return started || System.currentTimeMillis() > until;
+        }
+    }
+
+    /** The preview is over: the session's player gob is a character again (at the road's end, or still at the post). */
+    static final class WaitBody extends NTask {
+        private final NGameUI gui;
+        private final long until;
+
+        WaitBody(NGameUI gui, long until) {
+            this.gui = gui;
+            this.until = until;
+        }
+
+        @Override
+        public boolean check() {
+            Gob pl = gui.map.player();
+            return (gui.map.plgob >= 0 && pl != null && isBody(pl)) || System.currentTimeMillis() > until;
+        }
+    }
+
+    static final class WaitTurn extends NTask {
+        private final RoadTrip trip;
+        private final String me;
+
+        WaitTurn(RoadTrip trip, String me) {
+            this.trip = trip;
+            this.me = me;
+        }
+
+        @Override
+        public boolean check() {
+            return trip.turn(me) != RoadTrip.Turn.WAIT;
+        }
+    }
+
+    /** The milestone windows open in this session. */
+    static Set<Window> roadWindows(NGameUI gui) {
+        Set<Window> out = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Widget w = gui.child; w != null; w = w.next)
+            if (w instanceof Window && MilestoneWindowExtension.isRoadWindow(w))
+                out.add((Window) w);
+        return out;
+    }
+
+    /** Waits, like FindNFlowerMenu, for the flower menu a right-click opens, or for a new milestone window. */
+    static final class FindMenuOrRoad extends NTask {
+        private final NUI ui;
+        private final Set<Window> before;
+        private final long startTime = System.currentTimeMillis();
+        private final long startFrame = NUtils.getTickId();
+        NFlowerMenu menu;
+        Window road;
+
+        FindMenuOrRoad(NUI ui, Set<Window> before) {
+            this.ui = ui;
+            this.before = before;
+        }
+
+        @Override
+        public boolean check() {
+            menu = (NFlowerMenu) ui.findInRoot(NFlowerMenu.class);
+            road = null;
+            if (menu == null && ui.gui != null) {
+                for (Window w : roadWindows(ui.gui)) {
+                    if (!before.contains(w)) {
+                        road = w;
+                        break;
+                    }
+                }
+            }
+            return menu != null || road != null || (NUtils.getTickId() - startFrame) > 240
+                   || System.currentTimeMillis() - startTime > 4000;
+        }
+    }
+
+    static final class WaitRoad extends NTask {
+        private final State st;
+        private final long seq;
+        private final Window wnd;
+        private final long until;
+
+        WaitRoad(State st, long seq, Window wnd, long until) {
+            this.st = st;
+            this.seq = seq;
+            this.wnd = wnd;
+            this.until = until;
+        }
+
+        @Override
+        public boolean check() {
+            SquadCommand.PickRoad p = st.roadPick;
+            return (p != null && p.seq == seq) || wnd.parent == null || System.currentTimeMillis() > until;
         }
     }
 

@@ -217,7 +217,7 @@ public class SquadView {
 
     /** True when Commander mode took the press. */
     public boolean mousedown(Widget.MouseDownEvent ev) {
-        if (!squad().commander() || !viewpoint())
+        if (!squad().commander() || !viewpoint() || inRoadPreview())
             return false;
         Squad.TargetPick pick = squad().pendingPick();
         if (pick != null) {
@@ -248,7 +248,7 @@ public class SquadView {
                 protected void hit(Coord pc, Coord2d mc, ClickData inf) {
                     Gob g = clickedGob(inf);
                     if (g != null && !isPlayer(g))
-                        squad().interact(g);
+                        squad().interact(g, pc);
                     else
                         squad().moveTo(mc);
                 }
@@ -277,6 +277,21 @@ public class SquadView {
         if (inf.ci instanceof Composited.CompositeClick)
             return ((Composited.CompositeClick) inf.ci).gi.gob;
         return null;
+    }
+
+    /**
+     * The character on screen is travelling a road: its preview takes the game's own clicks (left = go, right = stay),
+     * so Commander mode keeps out of the way. In the preview the session has no player gob (plgob -1); as the scout
+     * of a squad trip it counts from pressing Travel on.
+     */
+    private boolean inRoadPreview() {
+        if (map.plgob < 0)
+            return true;
+        Gob pl = map.player();
+        if (pl != null && !SquadExecutor.isBody(pl))
+            return true;
+        SessionContext vp = squad().viewpoint();
+        return vp != null && vp.squadState.thread() != null && vp.squadState.status == MemberReport.Status.TRAVELLING;
     }
 
     public boolean mousemove(Coord c) {
@@ -357,9 +372,10 @@ public class SquadView {
         }
     }
 
+    /** A ground point on screen, at the terrain's own height there (MapView.screenxf(Coord2d) uses the camera's). */
     private Coord screen(Coord2d local) {
         try {
-            Coord3f s = map.screenxf(local);
+            Coord3f s = map.screenxf(new Coord3f((float) local.x, (float) local.y, (float) map.glob.map.getcz(local)));
             return (s == null) ? null : s.round2();
         } catch (Loading l) {
             return null;
@@ -579,9 +595,8 @@ public class SquadView {
             if (gob != null && gob.rc.dist(s) < MCache.tilesz.x)
                 continue;
             g.fellipse(ss, UI.scale(new Coord(3, 2)));
-            Coord from = (gob == null) ? null : screen(gob, 0);
-            if (from != null)
-                dashed(g, from, ss);
+            if (gob != null)
+                groundDashed(g, gob.rc, s);
         }
         if (ts != null) {
             int r = UI.scale(6);
@@ -591,16 +606,41 @@ public class SquadView {
         g.chcolor();
     }
 
-    private static void dashed(GOut g, Coord a, Coord b) {
-        double len = a.dist(b);
-        int dash = UI.scale(6), gap = UI.scale(4);
-        if (len < 1)
-            return;
-        double dx = (b.x - a.x) / len, dy = (b.y - a.y) / len;
-        for (double d = 0; d < len; d += dash + gap) {
-            double e = Math.min(len, d + dash);
-            g.line(new Coord((int) (a.x + dx * d), (int) (a.y + dy * d)),
-                   new Coord((int) (a.x + dx * e), (int) (a.y + dy * e)), 1.5);
+    /** A dashed line along the ground from a to b, a point about every tile, so it follows the relief. */
+    private void groundDashed(GOut g, Coord2d a, Coord2d b) {
+        int n = Math.max(1, (int) Math.ceil(a.dist(b) / MCache.tilesz.x));
+        List<Coord> pts = new ArrayList<>(n + 1);
+        for (int i = 0; i <= n; i++) {
+            Coord p = screen(a.add(b.sub(a).mul((double) i / n)));
+            if (p == null)
+                return;
+            pts.add(p);
+        }
+        dashed(g, pts);
+    }
+
+    /** Dashes along a screen polyline; the pattern runs on across its corners. */
+    private static void dashed(GOut g, List<Coord> pts) {
+        double dash = UI.scale(6), period = dash + UI.scale(4), along = 0;
+        for (int i = 1; i < pts.size(); i++) {
+            Coord a = pts.get(i - 1), b = pts.get(i);
+            double len = a.dist(b);
+            if (len < 1e-6)
+                continue;
+            double dx = (b.x - a.x) / len, dy = (b.y - a.y) / len;
+            double d = 0;
+            while (d < len) {
+                double ph = (along + d) % period;
+                if (ph < dash) {
+                    double e = Math.min(len, d + dash - ph);
+                    g.line(new Coord((int) (a.x + dx * d), (int) (a.y + dy * d)),
+                           new Coord((int) (a.x + dx * e), (int) (a.y + dy * e)), 1.5);
+                    d = e;
+                } else {
+                    d += period - ph;
+                }
+            }
+            along += len;
         }
     }
 

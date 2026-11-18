@@ -18,7 +18,7 @@ public class SquadHelpWindow extends Window {
         {"mode_title", "mode_text", "-mode_on", "-mode_frame", "-mode_off"},
         {"select_title", "-select_click", "-select_shift", "-select_box", "-select_double", "-select_ground",
          "-select_all", "-select_tab", "-select_panel", "select_view", "select_limits"},
-        {"cmd_title", "-cmd_move", "-cmd_use", "-cmd_map", "-cmd_stop", "-cmd_rally", "-cmd_follow"},
+        {"cmd_title", "-cmd_move", "-cmd_use", "-cmd_road", "-cmd_map", "-cmd_stop", "-cmd_rally", "-cmd_follow"},
         {"leader_title", "leader_text", "-leader_set", "-leader_change"},
         {"groups_title", "-groups_set", "-groups_recall", "groups_text"},
         {"panel_title", "panel_text", "-panel_formation", "-panel_buttons", "-panel_pathfind", "-panel_bots",

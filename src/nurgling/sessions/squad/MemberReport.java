@@ -8,7 +8,8 @@ import java.util.List;
  * session's map, gobs or widgets.
  */
 public final class MemberReport {
-    public enum Status { IDLE, WALKING, PATHING, CHUNKNAV, INTERACTING, FOLLOWING, UNREACHABLE, SKIPPED, BOT, COMBAT }
+    public enum Status { IDLE, WALKING, PATHING, CHUNKNAV, INTERACTING, FOLLOWING, QUEUED, TRAVELLING, UNREACHABLE, SKIPPED, BOT,
+                        COMBAT }
 
     public final String genus;
     public final String name;
