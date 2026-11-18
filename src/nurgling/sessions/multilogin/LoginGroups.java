@@ -111,6 +111,11 @@ public final class LoginGroups {
         save();
     }
 
+    /** A copy of the group's picks, in tick order. */
+    public synchronized Map<String, String> picks(Group g) {
+        return new LinkedHashMap<>(g.picks);
+    }
+
     public synchronized int maxAtOnce() {
         return maxAtOnce;
     }

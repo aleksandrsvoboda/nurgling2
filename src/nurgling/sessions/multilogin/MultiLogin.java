@@ -2,9 +2,18 @@ package nurgling.sessions.multilogin;
 
 import haven.UILoop;
 
+import nurgling.conf.NSavedAccounts;
+import nurgling.sessions.SessionContext;
+import nurgling.sessions.SessionManager;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * "Log in to several": the saved groups and the run in progress. A run outlives the login screen it
@@ -56,6 +65,24 @@ public final class MultiLogin {
         run = r;
         r.start();
         return r;
+    }
+
+    /** The group's picks that can run now: accounts with a saved login token that aren't logged in already. */
+    public Map<String, String> runnable(LoginGroups.Group g, String confname) {
+        Set<String> online = new HashSet<>();
+        for (SessionContext ctx : SessionManager.getInstance().getAllSessions()) {
+            if (ctx.username != null && ctx.isConnected())
+                online.add(ctx.username.toLowerCase(Locale.ROOT));
+        }
+        Map<String, Boolean> token = new HashMap<>();
+        for (NSavedAccounts.Account a : NSavedAccounts.list(confname))
+            token.put(a.name, a.token);
+        Map<String, String> ret = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : groups().picks(g).entrySet()) {
+            if (Boolean.TRUE.equals(token.get(e.getKey())) && !online.contains(e.getKey().toLowerCase(Locale.ROOT)))
+                ret.put(e.getKey(), e.getValue());
+        }
+        return ret;
     }
 
     public void stop() {

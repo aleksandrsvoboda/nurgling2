@@ -266,18 +266,8 @@ public class NMultiLoginPanel extends Widget {
 
     /* ---------------------------------------------------------------- runs */
 
-    /** The group's picks that can run now: saved token accounts not logged in elsewhere. */
     private Map<String, String> runnable() {
-        Map<String, String> ret = new LinkedHashMap<>();
-        Map<String, String> on = online();
-        Map<String, Boolean> token = new HashMap<>();
-        for (NSavedAccounts.Account a : NSavedAccounts.list(screen.confname))
-            token.put(a.name, a.token);
-        for (Map.Entry<String, String> e : group.picks.entrySet()) {
-            if (Boolean.TRUE.equals(token.get(e.getKey())) && !on.containsKey(e.getKey().toLowerCase(Locale.ROOT)))
-                ret.put(e.getKey(), e.getValue());
-        }
-        return ret;
+        return ml.runnable(group, screen.confname);
     }
 
     /** Why Run is off, or null. */

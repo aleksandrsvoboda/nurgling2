@@ -49,6 +49,8 @@ public class NLoginScreen extends LoginScreen {
     /* Plugin additions: links under the form, and content shown in the form's place. */
     private final List<NActionLink> actions = new ArrayList<>();
     private Widget panel = null;
+    /* The "Log in to several" groups, one click each; above the links. */
+    private nurgling.widgets.login.NGroupLinks groupLinks = null;
     private boolean announced = false;
     /* The server is waiting for credentials and none have been sent since. */
     private volatile boolean prompt = false;
@@ -103,6 +105,8 @@ public class NLoginScreen extends LoginScreen {
         });
         statusbar = add(new NLoginStatusBar(HttpStatus.mond.get(), sz.x - (2 * MARGIN)));
         layout();
+        groupLinks = add(new nurgling.widgets.login.NGroupLinks(NBackdrop.SCRIMW - (2 * MARGIN),
+                nurgling.sessions.SessionManager.getInstance().multiLogin().groups(), this::runGroup), Coord.z);
         addAction(nurgling.i18n.L10n.get("multilogin.link"), this::showMultiLogin);
         startVersionCheck();
     }
@@ -159,6 +163,11 @@ public class NLoginScreen extends LoginScreen {
                 ax += a.sz.x + UI.scale(16);
             }
             formmax = ay - UI.scale(12);
+        }
+        /* Only while shown: a panel in the form's place gets the room back. */
+        if ((groupLinks != null) && groupLinks.visible() && (groupLinks.sz.y > 0)) {
+            groupLinks.move(Coord.of(MARGIN, formmax - groupLinks.sz.y));
+            formmax = groupLinks.c.y - UI.scale(10);
         }
         if (panel != null)
             panel.move(Coord.of(MARGIN, formmin));
@@ -288,6 +297,18 @@ public class NLoginScreen extends LoginScreen {
         showPanel(new nurgling.widgets.login.NMultiLoginPanel(this));
     }
 
+    /* A group clicked under the form: log it in, and show the panel with the run's progress. */
+    private void runGroup(nurgling.sessions.multilogin.LoginGroups.Group g) {
+        nurgling.sessions.multilogin.MultiLogin ml = nurgling.sessions.SessionManager.getInstance().multiLogin();
+        if (!ml.running() && (ui != null) && (ui.getLoop() != null)) {
+            ml.groups().select(g);
+            java.util.Map<String, String> picks = ml.runnable(g, confname);
+            if (!picks.isEmpty())
+                ml.start(ui.getLoop(), picks);
+        }
+        showMultiLogin();
+    }
+
     /** The size a panel gets: the form's column on the scrim, down to the links. */
     public Coord panelSize() {
         return (Coord.of(NBackdrop.SCRIMW - (2 * MARGIN), Math.max(UI.scale(200), formmax - formmin)));
@@ -300,6 +321,8 @@ public class NLoginScreen extends LoginScreen {
         login.hide();
         for (NActionLink a : actions)
             a.hide();
+        if (groupLinks != null)
+            groupLinks.hide();
         layout();
         return (w);
     }
@@ -314,6 +337,11 @@ public class NLoginScreen extends LoginScreen {
         login.show();
         for (NActionLink a : actions)
             a.show();
+        /* The panel may have added, renamed or emptied groups. */
+        if (groupLinks != null) {
+            groupLinks.refresh();
+            groupLinks.show();
+        }
         layout();
     }
 
