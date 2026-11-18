@@ -318,6 +318,13 @@ public class UI {
 		    Thread.currentThread().interrupt();
 		}
 	    }
+	    /* nurgling: commands run on the loader thread, shared by sessions. Widgets built here
+	     * ask for "the" game UI (NUtils.getGameUI), which otherwise means the session on screen -
+	     * wrong for a background session, and null when only a login screen is up. Bind this UI
+	     * for the command, and put back whatever the thread had. */
+	    nurgling.NUI prev = nurgling.sessions.ThreadLocalUI.get();
+	    if(UI.this instanceof nurgling.NUI)
+		nurgling.sessions.ThreadLocalUI.set((nurgling.NUI)UI.this);
 	    try {
 		cmd.action.run();
 	    } catch(Loading l) {
@@ -329,6 +336,11 @@ public class UI {
 		// rendering state) starves all future messages to that widget.
 		finish(cmd);
 		throw(new CommandException(cmd, e));
+	    } finally {
+		if(prev == null)
+		    nurgling.sessions.ThreadLocalUI.clear();
+		else
+		    nurgling.sessions.ThreadLocalUI.set(prev);
 	    }
 	    finish(cmd);
 	}

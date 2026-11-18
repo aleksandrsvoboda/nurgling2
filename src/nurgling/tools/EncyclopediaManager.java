@@ -34,10 +34,14 @@ public class EncyclopediaManager {
                 if (resourceUri.getScheme().equals("jar")) {
                     // Running from JAR - get or create filesystem for the JAR
                     FileSystem fileSystem;
-                    try {
-                        fileSystem = FileSystems.getFileSystem(resourceUri);
-                    } catch (FileSystemNotFoundException e) {
-                        fileSystem = FileSystems.newFileSystem(resourceUri, Collections.emptyMap());
+                    /* Several sessions' game UIs can open at once (background logins); the
+                     * get-or-create has to be one step, or the loser throws FileSystemAlreadyExists. */
+                    synchronized (EncyclopediaManager.class) {
+                        try {
+                            fileSystem = FileSystems.getFileSystem(resourceUri);
+                        } catch (FileSystemNotFoundException e) {
+                            fileSystem = FileSystems.newFileSystem(resourceUri, Collections.emptyMap());
+                        }
                     }
                     docsPath = fileSystem.getPath(resourcePath);
                 } else {
