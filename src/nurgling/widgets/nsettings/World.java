@@ -20,6 +20,7 @@ public class World extends Panel {
         boolean showBeehiveRadius;
         boolean showTroughRadius;
         boolean showMoundBedRadius;
+        boolean showMineSupportRadius;
         boolean showDamageShields;
         boolean showGridWalls;
         boolean showGridDiagonals;
@@ -43,6 +44,7 @@ public class World extends Panel {
     private CheckBox beehiveRadius;
     private CheckBox troughRadius;
     private CheckBox moundBedRadius;
+    private CheckBox mineSupportRadius;
     private CheckBox damageShields;
     private CheckBox gridWalls;
     private CheckBox gridDiagonals;
@@ -162,6 +164,13 @@ public class World extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
 
+        prev = mineSupportRadius = content.add(new CheckBox(L10n.get("world.show_minesupport_radius")) {
+            public void set(boolean val) {
+                tempSettings.showMineSupportRadius = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 5));
+
         prev = damageShields = content.add(new CheckBox(L10n.get("world.show_damage_shields")) {
             public void set(boolean val) {
                 tempSettings.showDamageShields = val;
@@ -235,9 +244,11 @@ public class World extends Panel {
         tempSettings.showBeehiveRadius = (Boolean) NConfig.get(NConfig.Key.showBeehiveRadius);
         tempSettings.showTroughRadius = (Boolean) NConfig.get(NConfig.Key.showTroughRadius);
         tempSettings.showMoundBedRadius = (Boolean) NConfig.get(NConfig.Key.showMoundBedRadius);
+        tempSettings.showMineSupportRadius = (Boolean) NConfig.get(NConfig.Key.showMineSupportRadius);
         beehiveRadius.a = tempSettings.showBeehiveRadius;
         troughRadius.a = tempSettings.showTroughRadius;
         moundBedRadius.a = tempSettings.showMoundBedRadius;
+        mineSupportRadius.a = tempSettings.showMineSupportRadius;
     }
 
     /** Re-reads the flat world setting after its hotkey changed it while this panel was open. */
@@ -256,6 +267,7 @@ public class World extends Panel {
         tempSettings.showBeehiveRadius = (Boolean) NConfig.get(NConfig.Key.showBeehiveRadius);
         tempSettings.showTroughRadius = (Boolean) NConfig.get(NConfig.Key.showTroughRadius);
         tempSettings.showMoundBedRadius = (Boolean) NConfig.get(NConfig.Key.showMoundBedRadius);
+        tempSettings.showMineSupportRadius = (Boolean) NConfig.get(NConfig.Key.showMineSupportRadius);
         tempSettings.showDamageShields = (Boolean) NConfig.get(NConfig.Key.showDamageShields);
         tempSettings.showGridWalls = (Boolean) NConfig.get(NConfig.Key.gridbox);
         tempSettings.showGridDiagonals = (Boolean) NConfig.get(NConfig.Key.gridDiagonals);
@@ -284,6 +296,7 @@ public class World extends Panel {
         beehiveRadius.a = tempSettings.showBeehiveRadius;
         troughRadius.a = tempSettings.showTroughRadius;
         moundBedRadius.a = tempSettings.showMoundBedRadius;
+        mineSupportRadius.a = tempSettings.showMineSupportRadius;
         damageShields.a = tempSettings.showDamageShields;
         gridWalls.a = tempSettings.showGridWalls;
         gridDiagonals.a = tempSettings.showGridDiagonals;
@@ -313,6 +326,7 @@ public class World extends Panel {
         NConfig.set(NConfig.Key.showBeehiveRadius, tempSettings.showBeehiveRadius);
         NConfig.set(NConfig.Key.showTroughRadius, tempSettings.showTroughRadius);
         NConfig.set(NConfig.Key.showMoundBedRadius, tempSettings.showMoundBedRadius);
+        NConfig.set(NConfig.Key.showMineSupportRadius, tempSettings.showMineSupportRadius);
         NConfig.set(NConfig.Key.showDamageShields, tempSettings.showDamageShields);
         NConfig.set(NConfig.Key.gridbox, tempSettings.showGridWalls);
         NConfig.set(NConfig.Key.gridDiagonals, tempSettings.showGridDiagonals);

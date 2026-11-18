@@ -75,6 +75,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     public static final KeyBinding kb_beehiveradius = KeyBinding.get("beehiveradius", KeyMatch.nil);
     public static final KeyBinding kb_troughradius = KeyBinding.get("troughradius", KeyMatch.nil);
     public static final KeyBinding kb_moundbedradius = KeyBinding.get("moundbedradius", KeyMatch.nil);
+    public static final KeyBinding kb_minesupportradius = KeyBinding.get("minesupportradius", KeyMatch.nil);
     public static final int MINING_OVERLAY = - 1;
     public NGlobalCoord lastGC = null;
 
@@ -2110,6 +2111,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             return toggleRadius(NConfig.Key.showTroughRadius, "opt.keybind.trough_radius");
         if(kb_moundbedradius.key().match(ev))
             return toggleRadius(NConfig.Key.showMoundBedRadius, "opt.keybind.moundbed_radius");
+        if(kb_minesupportradius.key().match(ev))
+            return toggleRadius(NConfig.Key.showMineSupportRadius, "opt.keybind.minesupport_radius");
         if(kb_flatworld.key().match(ev)) {
             nurgling.tools.FlatWorld.toggle();
             NUtils.getGameUI().msg("Flat world: " + (nurgling.tools.FlatWorld.isEnabled() ? "enabled" : "disabled"));

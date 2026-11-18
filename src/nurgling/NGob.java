@@ -913,7 +913,10 @@ public class NGob
                         if (mineSpec.isRect())
                             parent.addcustomol(new NMiningSupport(parent, mineSpec.widthTiles, mineSpec.lengthTiles));
                         else
+                        {
                             parent.addcustomol(new NMiningSupport(parent, mineSpec.circleRadius));
+                            parent.addcustomol(new nurgling.overlays.NMineSupportRadius(parent, mineSpec.circleRadius));
+                        }
                     }
                         if (name.contains("gfx/terobjs/dframe") || name.contains("gfx/terobjs/cheeserack"))
                         {
