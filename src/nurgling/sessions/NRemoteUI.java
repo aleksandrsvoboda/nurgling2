@@ -17,8 +17,45 @@ import java.util.Collection;
  */
 public class NRemoteUI extends RemoteUI {
 
+    /** True for a session logged in in the background: it is registered without becoming active and never draws. */
+    private final boolean background;
+
     public NRemoteUI(Session sess) {
+        this(sess, false);
+    }
+
+    public NRemoteUI(Session sess, boolean background) {
         super(sess);
+        this.background = background;
+    }
+
+    /**
+     * Starts a background session's UI ({@code ui} was built with this runner, off the window's
+     * loop): server messages go to it on a background thread and its game logic ticks headless,
+     * exactly as for a session that was switched away from. Switching to it later works the same way too.
+     */
+    public SessionContext startBackground(NUI ui) {
+        SessionContext ctx = SessionManager.getInstance().findBySession(sess);
+        if (ctx == null)
+            throw new IllegalStateException("background session was not registered");
+        ui.setreceiver(this);
+        sendua(ui);
+        ctx.startHeadless();
+        spawnBackgroundMessageLoop(ui, ctx);
+        return ctx;
+    }
+
+    /** Installs the session lifecycle listener and the tab bar controller on the window's loop, once.
+     *  Synchronized: background logins call it from several threads at once. */
+    public static synchronized void ensureLoopHooks(UILoop loop) {
+        if (loop == null)
+            return;
+        if (loop.getUILifecycleListener() == null) {
+            loop.setUILifecycleListener(new NUILifecycleListener());
+        }
+        if (SessionUIController.getInstance() == null) {
+            SessionUIController.initialize(loop);
+        }
     }
 
     /**
@@ -33,6 +70,15 @@ public class NRemoteUI extends RemoteUI {
 
             // Check if this session already exists (e.g., reconnecting after switch)
             SessionContext existing = sm.findBySession(sess);
+
+            if (background) {
+                String username = (sess != null && sess.user != null) ? sess.user.name : null;
+                SessionContext duplicate = (username != null) ? sm.findByUsername(username) : null;
+                if (duplicate != null)
+                    sm.removeSessionSilently(duplicate.sessionId);
+                sm.addBackgroundSession(sess, nui);
+                return;
+            }
 
             if (existing != null) {
                 // Session already exists (e.g., promoting from headless) - update UI reference
@@ -65,22 +111,10 @@ public class NRemoteUI extends RemoteUI {
                 nurgling.widgets.charsel.CharselBridge.show(nui);
             }
 
-            // Register lifecycle listener with the UI loop if not already done
-            UILoop loop = ui.getLoop();
-            if (loop != null) {
-                if (loop.getUILifecycleListener() == null) {
-                    loop.setUILifecycleListener(new NUILifecycleListener());
-                }
-
-                // Initialize SessionUIController if needed
-                SessionUIController ctrl = SessionUIController.getInstance();
-                if (ctrl == null) {
-                    SessionUIController.initialize(loop);
-                }
-
-                // Note: attachToUI() is called by NUILifecycleListener.afterNewUI()
-                // to avoid blocking during character selection initialization
-            }
+            // Register lifecycle listener and tab bar controller with the UI loop if not already done.
+            // Note: attachToUI() is called by NUILifecycleListener.afterNewUI()
+            // to avoid blocking during character selection initialization
+            ensureLoopHooks(ui.getLoop());
         }
     }
 
@@ -144,6 +178,10 @@ public class NRemoteUI extends RemoteUI {
     private void spawnBackgroundMessageLoop(UI ui, SessionContext ctx) {
         Thread bgThread = new Thread(() -> {
             boolean promotedToVisual = false;
+            /* Widgets built here (a background login's whole charsel and game UI) must see this
+             * session as "the" UI, not the one on screen. */
+            if (ui instanceof NUI)
+                ThreadLocalUI.set((NUI) ui);
 
             try {
                 while (ctx.isConnected() && ctx.isHeadless()) {
@@ -165,6 +203,7 @@ public class NRemoteUI extends RemoteUI {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } finally {
+                ThreadLocalUI.clear();
                 if (!promotedToVisual) {
                     // Session ended without promotion - clean up
                     SessionManager.getInstance().removeSession(ctx.sessionId);

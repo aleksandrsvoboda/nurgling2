@@ -82,13 +82,14 @@ public class SessionContext {
         }
     }, null, false);
 
-    private static int sessionCounter = 0;
+    /* Atomic: background logins create sessions on several threads at once. */
+    private static final java.util.concurrent.atomic.AtomicInteger sessionCounter = new java.util.concurrent.atomic.AtomicInteger();
 
     /**
      * Create a new session context.
      */
     public SessionContext() {
-        this.sessionId = "session-" + (++sessionCounter);
+        this.sessionId = "session-" + sessionCounter.incrementAndGet();
     }
 
     /**
@@ -274,7 +275,25 @@ public class SessionContext {
             session.injectMessage(new DetachMessage());
         }
 
-        // Start headless tick thread for game logic (glob ticks, UI ticks)
+        startHeadlessTick();
+    }
+
+    /**
+     * Start a session that was never on screen (a background login) in headless mode. Unlike
+     * {@link #demoteToHeadless} there is no on-screen message loop to detach and nothing drawn to
+     * clear; the caller runs the background message loop itself.
+     */
+    public void startHeadless() {
+        if (headless) {
+            return;
+        }
+        headless = true;
+        keepMeshes(false);
+        startHeadlessTick();
+    }
+
+    /** Start the headless tick thread for game logic (glob ticks, UI ticks). */
+    private void startHeadlessTick() {
         headlessThread = new Thread(() -> {
             try {
                 runHeadlessLoop();
@@ -379,6 +398,7 @@ public class SessionContext {
                             }
                         } catch (Exception e) {
                             // Glob tick failed — non-fatal, gob state may be stale this tick
+                            reportTickFailure("glob tick", e);
                         }
 
                         // Tick the UI (processes widget state, bot actions, etc.)
@@ -389,6 +409,7 @@ public class SessionContext {
                             ui.lastevent = now;
                         } catch (Exception e) {
                             // Widget tick failed — non-fatal
+                            reportTickFailure("ui tick", e);
                         }
                     }
                 }
@@ -406,6 +427,19 @@ public class SessionContext {
         } finally {
             // Clean up thread-local UI when the headless loop exits
             ThreadLocalUI.clear();
+        }
+    }
+
+    /* Headless tick failures are survived, but a widget that throws on every tick stops the rest of
+     * the tree (the map view among them) from ticking. Say so once per kind, with where it came from. */
+    private final java.util.Set<String> reportedTickFailures = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private void reportTickFailure(String where, Exception e) {
+        StackTraceElement[] st = e.getStackTrace();
+        String key = where + ":" + e.getClass().getName() + ":" + ((st.length > 0) ? st[0] : "");
+        if (reportedTickFailures.size() < 20 && reportedTickFailures.add(key)) {
+            System.out.println("[SessionContext] " + getDisplayName() + " (" + sessionId + "): headless " + where + " failed (shown once):");
+            e.printStackTrace(System.out);
         }
     }
 

@@ -33,6 +33,17 @@ public class NFileUtils {
      * @param content    the full content to write
      */
     public static void writeAtomically(String targetPath, byte[] content) throws IOException {
+        /* One writer per file at a time: sessions share files such as nconfig.nurgling.json and its
+         * single .tmp/.bak, and two saves at once collide ("file in use" on Windows). */
+        Object lock = WRITE_LOCKS.computeIfAbsent(Path.of(targetPath).toAbsolutePath().normalize().toString(), k -> new Object());
+        synchronized (lock) {
+            writeAtomically0(targetPath, content);
+        }
+    }
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, Object> WRITE_LOCKS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void writeAtomically0(String targetPath, byte[] content) throws IOException {
         Path target = Path.of(targetPath);
         Path temp = target.resolveSibling(target.getFileName() + ".tmp");
         Path backup = target.resolveSibling(target.getFileName() + ".bak");
