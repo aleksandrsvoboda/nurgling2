@@ -1017,6 +1017,24 @@ public class MCache implements MapSource {
 	    }
 	}
 
+	/* nurgling: ivneigh for a remembered-ground cache (putgrid): the
+	 * terrain meshes alone, and only of the cuts that hold one, so no
+	 * flavor objects are made for ground nobody stands on. */
+	void ivneighmesh(Coord nc) {
+	    Coord cc = new Coord();
+	    for(cc.y = 0; cc.y < cutn.y; cc.y++) {
+		for(cc.x = 0; cc.x < cutn.x; cc.x++) {
+		    if((((nc.x < 0) && (cc.x == 0)) || ((nc.x > 0) && (cc.x == cutn.x - 1)) || (nc.x == 0)) &&
+		       (((nc.y < 0) && (cc.y == 0)) || ((nc.y > 0) && (cc.y == cutn.y - 1)) || (nc.y == 0)))
+		    {
+			Cut cut = geticut(Coord.of(cc));
+			if(cut.mesh.held())
+			    cut.mesh.rebuild();
+		    }
+		}
+	    }
+	}
+
 	public void tick(double dt) {
 	    for(Cut cut : cuts) {
 		Flavobjs fo = cut.fo.cur();
@@ -1736,6 +1754,67 @@ public class MCache implements MapSource {
 	    tiles[i] = new SoftReference<>(tile = set.tfac().create(i, set));
 	}
 	return(tile);
+    }
+
+    /* nurgling: remembered ground (nurgling.render.remembered.RecallMap)
+     * keeps a cache of its own, filled from the map file and never from
+     * the server. These put a recorded grid in and take it out again. */
+    public void settileset(int id, Indir<Resource> res) {
+	cktileid(id);
+	sets[id] = res;
+    }
+
+    public void putgrid(Grid g) {
+	List<Pair<Grid, Coord>> neigh = new ArrayList<>();
+	synchronized(grids) {
+	    Grid prev = grids.put(g.gc, g);
+	    if(prev != null)
+		prev.dispose();
+	    synchronized(req) {
+		req.remove(g.gc);
+	    }
+	    for(int y = -1; y <= 1; y++) {
+		for(int x = -1; x <= 1; x++) {
+		    if((x == 0) && (y == 0))
+			continue;
+		    Coord ic = Coord.of(x, y);
+		    Grid ng = grids.get(g.gc.add(ic));
+		    if(ng != null)
+			neigh.add(new Pair<>(ng, ic.inv()));
+		}
+	    }
+	    gridwait.wnotify();
+	}
+	/* The neighbours' edge cuts read this grid's tiles; outside the
+	 * grids monitor, as a cut's rebuild takes its own. */
+	for(Pair<Grid, Coord> n : neigh)
+	    n.a.ivneighmesh(n.b);
+    }
+
+    public void dropgrid(Coord gc) {
+	Grid g;
+	synchronized(grids) {
+	    g = grids.remove(gc);
+	    synchronized(req) {
+		req.remove(gc);
+	    }
+	}
+	if(g != null)
+	    g.dispose();
+    }
+
+    /* The grids asked for and not had: a cache that is never sent
+     * (sendreqs) only collects them. */
+    public int pendingreqs() {
+	synchronized(req) {
+	    return(req.size());
+	}
+    }
+
+    public void clearreqs() {
+	synchronized(req) {
+	    req.clear();
+	}
     }
 
     public boolean meshes() {

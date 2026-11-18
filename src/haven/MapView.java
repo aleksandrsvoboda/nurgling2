@@ -113,7 +113,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void resized() {
 	    float field = 0.5f;
 	    float aspect = ((float)sz.y) / ((float)sz.x);
-	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, 1, 5000);
+	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, 1, zfar());
 	}
 
 	public void apply(Pipe p) {
@@ -229,7 +229,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    
 	    float field = field(elev);
 	    view = haven.render.Camera.pointed(curc.add(camoff).add(0.0f, 0.0f, h), dist(elev), elev, angl);
-	    proj = Projection.frustum(-field, field, -ca * field, ca * field, 1, 5000);
+	    proj = Projection.frustum(-field, field, -ca * field, ca * field, 1, zfar());
 	}
 
 	public float angle() {
@@ -448,7 +448,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		vm = Location.makexlate(new Matrix4f(), corr).mul1(vm);
 	    }
 	    view = new haven.render.Camera(vm);
-	    proj = Projection.ortho(-field, field, -field * aspect, field * aspect, 1, 5000);
+	    proj = Projection.ortho(-field, field, -field * aspect, field * aspect, 1, zfar());
 	}
 
 	public float angle() {
@@ -657,6 +657,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public void dispose() {
+		remembered.clear();
 		if(gobs!=null && gobs.slot!=null)
 			gobs.slot.remove();
 		if(clmaplist!=null)
@@ -898,6 +899,31 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public final Terrain terrain;
+
+    /* nurgling: the ground of explored grids past the live terrain, drawn
+     * out of the map file (Options > World > Remembered ground). */
+    public final nurgling.render.remembered.RememberedGround remembered = new nurgling.render.remembered.RememberedGround(this);
+
+    /* The cameras' far plane: past the remembered ground while it is on. */
+    public float zfar() {
+	return(nurgling.render.remembered.RememberedGround.zfar(5000));
+    }
+
+    /* Whether the live terrain has this cut (session cut coords) in the scene. */
+    public boolean livecut(Coord cc) {
+	return(terrain.main.cuts.containsKey(cc));
+    }
+
+    /* The cuts the live terrain draws, or null before its first tick. */
+    public Area terrainarea() {
+	return(terrain.area);
+    }
+
+    /* Where the camera's eye is, in render coordinates (y inverted). */
+    public Coord3f cameye() {
+	return(camera.view.fin(Matrix4f.id).invert().mul4(Coord3f.o));
+    }
+
     public class Terrain extends MapRaster {
 	final Grid main = new Grid<MapMesh>() {
 		protected MapMesh getcut(Coord cc) {
@@ -2137,6 +2163,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 	}
 
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "remembered-ground")) {
+		remembered.tick();
+	}
+
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done()) {
 	    Plob ob = placing.get();
@@ -2841,6 +2871,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    throw(new Exception("no such camera: " + args[1]));
 		}
 	    }
+	});
+	cmdmap.put("recall", (cons, args) -> {
+	    cons.out.println(remembered.stats());
 	});
 	cmdmap.put("whyload", (cons, args) -> {
 	    Loading l = lastload;

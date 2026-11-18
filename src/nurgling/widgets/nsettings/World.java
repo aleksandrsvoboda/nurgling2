@@ -4,6 +4,7 @@ import haven.*;
 import nurgling.*;
 import nurgling.i18n.L10n;
 import nurgling.overlays.NModelBox;
+import nurgling.render.remembered.RememberedGround;
 import nurgling.tools.FlatWorld;
 import nurgling.tools.GobHide;
 import nurgling.widgets.NColorWidget;
@@ -29,6 +30,10 @@ public class World extends Panel {
         boolean disableTileTransitions;
         boolean disableCloudShadows;
         boolean darkenDeepOcean;
+        boolean rememberedGround;
+        int rememberedRange = RememberedGround.RANGEDEF;
+        int rememberedWash = 50;
+        int rememberedDetail = RememberedGround.DETAILDEF;
         Color boxFillColor = new Color(227, 28, 1, 195);
         Color boxEdgeColor = new Color(224, 193, 79, 255);
         int boxLineWidth = 4;
@@ -53,6 +58,9 @@ public class World extends Panel {
     private CheckBox disableTileTransitions;
     private CheckBox disableCloudShadows;
     private CheckBox darkenDeepOcean;
+    private CheckBox rememberedGround;
+    private HSlider rememberedRangeSlider, rememberedWashSlider, rememberedDetailSlider;
+    private Label rememberedRangeLabel, rememberedWashLabel, rememberedDetailLabel;
     private NColorWidget gridWallColorWidget;
     private NColorWidget gridDiagonalColorWidget;
     private NColorWidget fillColorWidget;
@@ -126,6 +134,40 @@ public class World extends Panel {
                 a = val;
             }
         }, prev.pos("bl").adds(0, 5));
+
+        // Remembered ground: explored terrain past the live area, from the map file
+        prev = rememberedGround = content.add(new CheckBox(L10n.get("world.remembered_ground")) {
+            public void set(boolean val) {
+                tempSettings.rememberedGround = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 5));
+        rememberedGround.settip(L10n.get("world.remembered_ground_tip"), true);
+
+        prev = rememberedRangeLabel = content.add(new Label(""), prev.pos("bl").adds(0, 5));
+        prev = rememberedRangeSlider = content.add(new HSlider(UI.scale(200), RememberedGround.RANGEMIN, RememberedGround.RANGEMAX, tempSettings.rememberedRange) {
+            public void changed() {
+                tempSettings.rememberedRange = val;
+                updateRememberedLabels();
+            }
+        }, prev.pos("bl").adds(0, 2));
+
+        prev = rememberedWashLabel = content.add(new Label(""), prev.pos("bl").adds(0, 5));
+        prev = rememberedWashSlider = content.add(new HSlider(UI.scale(200), 0, 100, tempSettings.rememberedWash) {
+            public void changed() {
+                tempSettings.rememberedWash = val;
+                updateRememberedLabels();
+            }
+        }, prev.pos("bl").adds(0, 2));
+
+        prev = rememberedDetailLabel = content.add(new Label(""), prev.pos("bl").adds(0, 5));
+        prev = rememberedDetailSlider = content.add(new HSlider(UI.scale(200), RememberedGround.DETAILMIN, RememberedGround.DETAILMAX, tempSettings.rememberedDetail) {
+            public void changed() {
+                tempSettings.rememberedDetail = val;
+                updateRememberedLabels();
+            }
+        }, prev.pos("bl").adds(0, 2));
+        updateRememberedLabels();
 
         // Objects section
         prev = content.add(new Label("● " + L10n.get("world.section.objects")), prev.pos("bl").adds(0, 15));
@@ -233,6 +275,18 @@ public class World extends Panel {
         pack();
     }
 
+    private void updateRememberedLabels() {
+        rememberedRangeLabel.settext(L10n.get("world.remembered_range") + " " + tempSettings.rememberedRange);
+        rememberedWashLabel.settext(L10n.get("world.remembered_wash") + " " + tempSettings.rememberedWash + "%");
+        rememberedDetailLabel.settext(L10n.get("world.remembered_detail") + " " + tempSettings.rememberedDetail + "%");
+    }
+
+    private static int intSetting(NConfig.Key key, int def, int min, int max) {
+        Object v = NConfig.get(key);
+        int i = (v instanceof Number) ? ((Number) v).intValue() : def;
+        return Math.max(min, Math.min(max, i));
+    }
+
     /** Re-reads showBB after the Ctrl+N hotkey changed it while this panel was already open. */
     public void syncShowBB() {
         tempSettings.showBB = (Boolean) NConfig.get(NConfig.Key.showBB);
@@ -276,6 +330,10 @@ public class World extends Panel {
         tempSettings.disableTileTransitions = (Boolean) NConfig.get(NConfig.Key.disableTileTransitions);
         tempSettings.disableCloudShadows = (Boolean) NConfig.get(NConfig.Key.disableCloudShadows);
         tempSettings.darkenDeepOcean = (Boolean) NConfig.get(NConfig.Key.darkenDeepOcean);
+        tempSettings.rememberedGround = Boolean.TRUE.equals(NConfig.get(NConfig.Key.rememberedGround));
+        tempSettings.rememberedRange = intSetting(NConfig.Key.rememberedGroundRange, RememberedGround.RANGEDEF, RememberedGround.RANGEMIN, RememberedGround.RANGEMAX);
+        tempSettings.rememberedWash = intSetting(NConfig.Key.rememberedGroundWash, 50, 0, 100);
+        tempSettings.rememberedDetail = intSetting(NConfig.Key.rememberedGroundDetail, RememberedGround.DETAILDEF, RememberedGround.DETAILMIN, RememberedGround.DETAILMAX);
 
         // Load colors if they exist in config
         tempSettings.boxFillColor = NConfig.getColor(NConfig.Key.boxFillColor, new Color(227, 28, 1, 195));
@@ -305,6 +363,11 @@ public class World extends Panel {
         disableTileTransitions.a = tempSettings.disableTileTransitions;
         disableCloudShadows.a = tempSettings.disableCloudShadows;
         darkenDeepOcean.a = tempSettings.darkenDeepOcean;
+        rememberedGround.a = tempSettings.rememberedGround;
+        rememberedRangeSlider.val = tempSettings.rememberedRange;
+        rememberedWashSlider.val = tempSettings.rememberedWash;
+        rememberedDetailSlider.val = tempSettings.rememberedDetail;
+        updateRememberedLabels();
         fillColorWidget.color = tempSettings.boxFillColor;
         edgeColorWidget.color = tempSettings.boxEdgeColor;
         gridWallColorWidget.color = tempSettings.gridWallColor;
@@ -341,6 +404,11 @@ public class World extends Panel {
         NConfig.set(NConfig.Key.disableTileTransitions, tempSettings.disableTileTransitions);
         NConfig.set(NConfig.Key.disableCloudShadows, tempSettings.disableCloudShadows);
         NConfig.set(NConfig.Key.darkenDeepOcean, tempSettings.darkenDeepOcean);
+        NConfig.set(NConfig.Key.rememberedGround, tempSettings.rememberedGround);
+        NConfig.set(NConfig.Key.rememberedGroundRange, tempSettings.rememberedRange);
+        NConfig.set(NConfig.Key.rememberedGroundWash, tempSettings.rememberedWash);
+        NConfig.set(NConfig.Key.rememberedGroundDetail, tempSettings.rememberedDetail);
+        RememberedGround.reload();
         
         // Invalidate map if tile settings changed
         if (oldTileSmoothing != tempSettings.disableTileSmoothing || oldTileTransitions != tempSettings.disableTileTransitions || oldDarkenDeepOcean != tempSettings.darkenDeepOcean) {

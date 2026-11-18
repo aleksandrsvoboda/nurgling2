@@ -197,6 +197,10 @@ public class NConfig
         showFishNodes,
         showFishWorldIcons,
         fishNodeLink,
+        rememberedGround,
+        rememberedGroundRange,
+        rememberedGroundWash,
+        rememberedGroundDetail,
         disableEasterEggs,
         easterEggSeen,
         simpleInspect,
@@ -653,6 +657,11 @@ public class NConfig
         conf.put(Key.showFishNodes, false);
         conf.put(Key.showFishWorldIcons, false);
         conf.put(Key.fishNodeLink, 14);  // Splash points this close (tiles) belong to one fish node
+        // Remembered ground: explored terrain drawn past the live area, from the map file
+        conf.put(Key.rememberedGround, false);
+        conf.put(Key.rememberedGroundRange, 8);     // grids around the character
+        conf.put(Key.rememberedGroundWash, 50);     // percent toward grey
+        conf.put(Key.rememberedGroundDetail, 100);  // percent: how far each level of detail reaches
         conf.put(Key.disableEasterEggs, false);
         conf.put(Key.easterEggSeen, false);
         
