@@ -206,10 +206,14 @@ public class QuickActions extends Panel {
 
         // Load patterns from new preset
         patterns.clear();
-        for (HashMap<String, Object> item : preset.patterns) {
-            ActionsItem aitem = new ActionsItem((String) item.get("name"));
-            aitem.isEnabled.a = (Boolean) item.getOrDefault("enabled", true);
-            patterns.add(aitem);
+        /* The presets live in the shared config, so every session's options window reads and
+         * writes the same lists; game UIs of several sessions can be built at once. */
+        synchronized (preset.patterns) {
+            for (HashMap<String, Object> item : preset.patterns) {
+                ActionsItem aitem = new ActionsItem((String) item.get("name"));
+                aitem.isEnabled.a = (Boolean) item.getOrDefault("enabled", true);
+                patterns.add(aitem);
+            }
         }
 
         // Update keybind button
@@ -224,13 +228,15 @@ public class QuickActions extends Panel {
     private void saveCurrentPresetPatterns() {
         if (currentPreset == null) return;
 
-        currentPreset.patterns.clear();
-        for (ActionsItem pattern : patterns) {
-            HashMap<String, Object> map = new HashMap<>();
-            map.put("type", "NPattern");
-            map.put("name", pattern.text());
-            map.put("enabled", pattern.isEnabled.a);
-            currentPreset.patterns.add(map);
+        synchronized (currentPreset.patterns) {
+            currentPreset.patterns.clear();
+            for (ActionsItem pattern : patterns) {
+                HashMap<String, Object> map = new HashMap<>();
+                map.put("type", "NPattern");
+                map.put("name", pattern.text());
+                map.put("enabled", pattern.isEnabled.a);
+                currentPreset.patterns.add(map);
+            }
         }
         currentPreset.keybind = KeyMatch.reduce(keybindButton.key);
     }
@@ -277,11 +283,13 @@ public class QuickActions extends Panel {
         }
 
         // Migration: if old q_pattern exists and Default preset is empty, migrate it
-        if ("Default".equals(presetToSelect.name) && presetToSelect.patterns.isEmpty()) {
-            Object oldPatterns = NConfig.get(NConfig.Key.q_pattern);
-            if (oldPatterns instanceof ArrayList) {
-                ArrayList<HashMap<String, Object>> oldPatternList = (ArrayList<HashMap<String, Object>>) oldPatterns;
-                presetToSelect.patterns.addAll(oldPatternList);
+        synchronized (presetToSelect.patterns) {
+            if ("Default".equals(presetToSelect.name) && presetToSelect.patterns.isEmpty()) {
+                Object oldPatterns = NConfig.get(NConfig.Key.q_pattern);
+                if (oldPatterns instanceof ArrayList) {
+                    ArrayList<HashMap<String, Object>> oldPatternList = (ArrayList<HashMap<String, Object>>) oldPatterns;
+                    presetToSelect.patterns.addAll(oldPatternList);
+                }
             }
         }
 

@@ -68,7 +68,11 @@ public final class LoginRun {
 
     private static final long STAGGER_MS = 500, RETRY_MS = 3_000;
     private static final long LIST_MS = 60_000, LIST_STEADY_MS = 1_000, LIST_SETTLE_MS = 15_000;
-    private static final long GAME_MS = 90_000;
+    private static final long GAME_MS = 90_000, BUILD_MS = 30_000, SETTLE_MS = 5_000;
+    /* One game UI is built at a time. Logging in, the character lists and loading the world all run
+     * in parallel, but the game UI's widgets were written for one being built at a time (a normal
+     * login never builds two at once) and share state such as the config's preset lists. */
+    private final Semaphore building = new Semaphore(1);
 
     private final UILoop loop;
     private final List<Entry> entries;
@@ -241,8 +245,16 @@ public final class LoginRun {
                 return;
             }
             e.state = State.PLAYING;
-            synchronized (ctx.ui) {
-                list.wdgmsg("play", e.character);
+            building.acquire();
+            try {
+                synchronized (ctx.ui) {
+                    list.wdgmsg("play", e.character);
+                }
+                /* Built once the map view is in and the UI has worked through what the server sent. */
+                Waits.until(BUILD_MS, () -> gameBuilt(ctx) || !connected(ctx));
+                Waits.until(SETTLE_MS, () -> ctx.ui.queue.isIdle() || !connected(ctx));
+            } finally {
+                building.release();
             }
             e.state = State.LOADING;
             if (!Waits.until(GAME_MS, () -> inGame(ctx) || !connected(ctx))) {
@@ -330,6 +342,12 @@ public final class LoginRun {
             return (n > 0) && (System.currentTimeMillis() - since[0] >= LIST_STEADY_MS);
         });
         return NCharselScreen.characterNames(list);
+    }
+
+    private static boolean gameBuilt(SessionContext ctx) {
+        NUI ui = ctx.ui;
+        NGameUI g = (ui == null) ? null : ui.gui;
+        return (g != null) && (g.map != null);
     }
 
     /** True once the session's game UI is up with the player and the map grid it stands on. */
