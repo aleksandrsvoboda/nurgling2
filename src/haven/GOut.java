@@ -251,6 +251,12 @@ public class GOut {
 	drawp(Model.Mode.LINES, data);
     }
 
+    /* nurgling: a filled quad a-b-c-d, not clipped to the GOut's area. */
+    public void fquad(Coord a, Coord b, Coord c, Coord d) {
+	float[] data = {a.x + tx.x, a.y + tx.y, b.x + tx.x, b.y + tx.y, d.x + tx.x, d.y + tx.y, c.x + tx.x, c.y + tx.y};
+	drawp(Model.Mode.TRIANGLE_STRIP, data);
+    }
+
     public void frect2(Coord ul, Coord br) {
 	ul = Coord.of(Math.max(ul.x + tx.x, this.ul.x), Math.max(ul.y + tx.y, this.ul.y));
 	br = Coord.of(Math.min(br.x + tx.x, this.br.x), Math.min(br.y + tx.y, this.br.y));

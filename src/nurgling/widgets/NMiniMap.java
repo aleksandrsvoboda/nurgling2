@@ -331,6 +331,9 @@ NMiniMap extends MiniMap {
         drawLayers(g);           // Plugin layers (see addLayer)
         drawMarkerLine(g);       // Draw line to selected marker
         drawPings(g);            // Draw chat map pings on top of everything else
+        // Squad / Commander: the characters and the camera's view (as the base minimap draws them)
+        if((sessloc != null) && (dloc != null) && (dloc.seg.id == sessloc.seg.id))
+            nurgling.sessions.squad.SquadView.drawMinimap(this, g);
     }
 
     /**
@@ -2260,6 +2263,10 @@ NMiniMap extends MiniMap {
 
     @Override
     public void mousemove(MouseMoveEvent ev) {
+        if(camdrag != null) {
+            super.mousemove(ev);
+            return;
+        }
         if(wpGrab != null) {
             // Dragging a queued waypoint - don't pan the map along with it.
             dragWaypointTo(ev.c, false);
@@ -3159,6 +3166,9 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
+        // Commander mode: a plain left press moves the camera (and drags it along), ahead of everything else.
+        if(commanderPress(ev))
+            return true;
         // Commander mode: a right-click is a squad move, ahead of every other right-click meaning here.
         if(ev.b == 3 && nurgling.sessions.squad.SquadView.minimapClick(this, xlate(ev.c), ev.b))
             return true;
@@ -3229,6 +3239,8 @@ NMiniMap extends MiniMap {
 
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if(commanderRelease(ev))
+            return true;
         if((holdGrab != null) && (ev.b == 1))
             endHoldSteer();
         if(wpGrab != null) {

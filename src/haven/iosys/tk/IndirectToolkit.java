@@ -73,6 +73,7 @@ public class IndirectToolkit implements Toolkit {
 	public Coord size() {return(bk.size());}
 	public State state() {return(bk.state());}
 	public boolean focused() {return(bk.focused());}
+	public boolean hovered() {return(bk.hovered());}
 	public Visibility visible() {return(bk.visible());}
 	public Clipboard clipboard(Object id) {return(bk.clipboard(id));}
 	public void stats(Collection<String> buf) {bk.stats(buf);}

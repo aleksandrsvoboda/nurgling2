@@ -186,8 +186,21 @@ public class NUI extends UI
             /* UI.keydown, with the squad's Commander-mode keys between the focused widget and the global keys:
              * they must win over fight and belt keys, but never over a text field. */
             if (!dispatch(root, new haven.Widget.KeyDownEvent(ev))) {
-                if (!nurgling.sessions.squad.SquadView.key(this, ev))
-                    dispatch(root, new haven.Widget.GlobKeyEvent(ev));
+                if (!nurgling.sessions.squad.SquadView.key(this, ev)) {
+                    /* Commander mode: the hidden character widgets (belts, menus) don't take hotkeys. */
+                    final java.util.Set<haven.Widget> off = (gui != null && gui.commanderScreen.on())
+                        ? gui.commanderScreen.hidden() : null;
+                    dispatch(root, (off == null) ? new haven.Widget.GlobKeyEvent(ev) : new haven.Widget.GlobKeyEvent(ev) {
+                        @Override
+                        protected boolean propagation(haven.Widget from) {
+                            for (haven.Widget w = from.lchild; w != null; w = w.prev) {
+                                if (!off.contains(w) && dispatch(w))
+                                    return true;
+                            }
+                            return false;
+                        }
+                    });
+                }
             }
         } finally {
             if (previousUI != null)

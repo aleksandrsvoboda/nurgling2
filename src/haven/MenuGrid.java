@@ -572,6 +572,10 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	cons(r.pag, sub);
 	if(sub.size() > 0) {
 	    change(r.pag);
+	} else if(nurgling.sessions.commander.CommanderActions.menuUsed(this, r)) {
+	    /* nurgling: Commander mode, the selected characters use it instead. */
+	    if(reset)
+		change(null);
 	} else {
 	    r.pag.anew = r.pag.tnew = 0;
 	    r.use(iact);

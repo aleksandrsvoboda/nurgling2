@@ -226,6 +226,8 @@ public class NLoginScreen extends LoginScreen {
         super.tick(dt);
         if (autoPending && NConfig.isBotMod())
             attemptAutoLogin();
+        if (ui != null)
+            nurgling.sessions.commander.CommanderRun.loginScreen(ui.getLoop());
         showLoggedIn();
     }
 

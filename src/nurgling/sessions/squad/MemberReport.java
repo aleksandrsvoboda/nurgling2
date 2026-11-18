@@ -29,9 +29,27 @@ public final class MemberReport {
     /** Interact order those options belong to. */
     public final long flowerSeq;
     public final long time;
+    /** Stamina and energy as fractions, or -1 when unknown. */
+    public final double stamina, energy;
+    /** Free and usable cells of the main inventory, or -1 when unknown. */
+    public final int invFree, invTotal;
+    /** Waypoints queued after the current order (Shift+right-click), first to last. */
+    public final List<WorldRef> queue;
 
     public MemberReport(String genus, String name, long plgob, WorldRef pos, double hp, int speed, Status status,
                         String detail, List<String> flowerOptions, long flowerSeq, long time) {
+        this(genus, name, plgob, pos, hp, speed, status, detail, flowerOptions, flowerSeq, time, -1, -1, -1, -1,
+             java.util.Collections.emptyList());
+    }
+
+    public MemberReport(String genus, String name, long plgob, WorldRef pos, double hp, int speed, Status status,
+                        String detail, List<String> flowerOptions, long flowerSeq, long time, double stamina,
+                        double energy, int invFree, int invTotal, List<WorldRef> queue) {
+        this.stamina = stamina;
+        this.energy = energy;
+        this.invFree = invFree;
+        this.invTotal = invTotal;
+        this.queue = queue;
         this.genus = genus;
         this.name = name;
         this.plgob = plgob;

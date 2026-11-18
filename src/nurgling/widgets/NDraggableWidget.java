@@ -411,6 +411,9 @@ public class NDraggableWidget extends Widget
 
     private void saveProp(Coord at)
     {
+        /* Commander mode keeps its own layout, shared by every session; the character's own stays as it was. */
+        if (nurgling.sessions.commander.CommanderLayout.record(this, at))
+            return;
         NDragProp prop = new NDragProp(new Coord(at), btnLock.a, btnVis.a, name);
         prop.flip = btnFlip.a;
         prop.rot = rot;

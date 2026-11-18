@@ -211,6 +211,9 @@ public class NConfig
         squadFormation,
         squadGroups,
         squadAutoView,
+        commanderEdgeScroll,
+        commanderQuickBar,
+        commanderLayout,
         decoupledRender,
         plagueSkin,
         nurglingify,
@@ -516,6 +519,9 @@ public class NConfig
         conf.put(Key.squadFormation, "GRID");
         conf.put(Key.squadGroups, "");
         conf.put(Key.squadAutoView, true);
+        conf.put(Key.commanderEdgeScroll, true);
+        conf.put(Key.commanderQuickBar, "");
+        conf.put(Key.commanderLayout, "");
         conf.put(Key.decoupledRender, false);
         conf.put(Key.plagueSkin, false);
         conf.put(Key.nurglingify, false);

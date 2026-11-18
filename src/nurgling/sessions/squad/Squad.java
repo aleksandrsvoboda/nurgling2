@@ -90,7 +90,14 @@ public class Squad implements SessionManager.SessionChangeListener {
 
     /** Show this character: switch to its session, keeping the camera. */
     public void view(SessionContext ctx) {
-        if (ctx != null && ctx != viewpoint())
+        if (ctx == null)
+            return;
+        if (commander) {
+            /* The commander camera decides what is shown: send it to the character, and its session takes over. */
+            sm.commander().jumpTo(ctx);
+            return;
+        }
+        if (ctx != viewpoint())
             sm.switchToSession(ctx.sessionId, true);
     }
 
@@ -253,7 +260,8 @@ public class Squad implements SessionManager.SessionChangeListener {
      * player switches by double-clicking a character instead, which avoids the blink of a switch on every selection.
      */
     private void followSelection(Collection<SessionContext> picked) {
-        if (!autoView())
+        /* In Commander mode the camera is the player's own: selecting never moves it. */
+        if (!autoView() || commander)
             return;
         List<SessionContext> m = members();
         SessionContext vp = viewpoint();
@@ -376,10 +384,43 @@ public class Squad implements SessionManager.SessionChangeListener {
 
     /** Walk the squad to a point in the viewpoint's frame, in formation. */
     public void moveTo(Coord2d target) {
-        moveTo(target, members());
+        moveTo(target, members(), false);
+    }
+
+    /** As {@link #moveTo(Coord2d)}; {@code queued} adds it after what each member was told before. */
+    public void moveTo(Coord2d target, boolean queued) {
+        moveTo(target, inTheater(members()), queued);
+    }
+
+    /**
+     * The members on the viewpoint's map segment. A spot on the viewpoint's map means nothing to a character on a
+     * piece of map that isn't joined to it, so orders given there skip those (and say so).
+     */
+    public List<SessionContext> inTheater(List<SessionContext> m) {
+        SessionContext vp = viewpoint();
+        MemberReport vr = (vp == null) ? null : vp.squadReport;
+        if (vr == null || vr.pos == null || vr.pos.segPos == null)
+            return m;
+        List<SessionContext> out = new ArrayList<>();
+        int skipped = 0;
+        for (SessionContext c : m) {
+            MemberReport r = c.squadReport;
+            if (r != null && r.pos != null && r.pos.segPos != null && r.pos.segId != vr.pos.segId)
+                skipped++;
+            else
+                out.add(c);
+        }
+        NGameUI g = gui(vp);
+        if (skipped > 0 && g != null)
+            g.msg(L10n.get("commander.msg.other_theater", skipped));
+        return out;
     }
 
     private void moveTo(Coord2d target, List<SessionContext> m) {
+        moveTo(target, m, false);
+    }
+
+    private void moveTo(Coord2d target, List<SessionContext> m, boolean queued) {
         NGameUI vp = gui(viewpoint());
         if (vp == null || vp.map == null || announceEmpty(vp, m))
             return;
@@ -395,7 +436,8 @@ public class Squad implements SessionManager.SessionChangeListener {
             WorldRef ref = WorldRef.of(map, sl, slots.get(i));
             if (ref == null)
                 continue;
-            m.get(i).squadInbox.add(new SquadCommand.Move(ref, pf, sb));
+            SquadCommand mv = new SquadCommand.Move(ref, pf || queued, sb);
+            m.get(i).squadInbox.add(queued ? new SquadCommand.Queued(mv) : mv);
             sent.put(m.get(i).sessionId, ref);
         }
         order = new Order(WorldRef.of(map, sl, target), sent);
@@ -558,8 +600,13 @@ public class Squad implements SessionManager.SessionChangeListener {
      * the server centres the windows the click opens (a milestone's, a container's) on that spot.
      */
     public void interact(Gob gob, Coord screen) {
+        interact(gob, screen, false);
+    }
+
+    /** As {@link #interact(Gob, Coord)}; {@code queued} does it after what each member was told before. */
+    public void interact(Gob gob, Coord screen, boolean queued) {
         NGameUI vp = gui(viewpoint());
-        List<SessionContext> m = members();
+        List<SessionContext> m = inTheater(members());
         if (vp == null || gob == null || gob.ngob == null || announceEmpty(vp, m))
             return;
         WorldRef at = WorldRef.of(vp.map.glob.map, SquadExecutor.sessloc(vp), gob.rc);
@@ -576,7 +623,8 @@ public class Squad implements SessionManager.SessionChangeListener {
         for (int i = 0; i < m.size(); i++) {
             SessionContext c = m.get(i);
             WorldRef side = (sides == null) ? null : WorldRef.of(map, sl, sides.get(i));
-            c.squadInbox.add(new SquadCommand.Interact(gob.id, at, gob.ngob.name, seq, side, screen, pf, sb));
+            SquadCommand ic = new SquadCommand.Interact(gob.id, at, gob.ngob.name, seq, side, screen, pf, sb);
+            c.squadInbox.add(queued ? new SquadCommand.Queued(ic) : ic);
             ids.add(c.sessionId);
         }
         interactMembers = Collections.unmodifiableSet(ids);

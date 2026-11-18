@@ -106,6 +106,43 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     /** Squad selection, rings and Commander-mode input for this view; acts only while this is the viewpoint. */
     public final nurgling.sessions.squad.SquadView squadView = new nurgling.sessions.squad.SquadView(this);
+    /** The commander camera, ghost markers and keep-visible brush for this view; acts only while this is on screen. */
+    public final nurgling.sessions.commander.CommanderView commanderView = new nurgling.sessions.commander.CommanderView(this);
+
+    /** Drop the current placement as a ghost in the commander's planner layer (made when there is none). */
+    private boolean commanderGhost() {
+        Loader.Future<Plob> pl = this.placing;
+        if (pl == null || !pl.done())
+            return false;
+        Plob plob = pl.get();
+        ResDrawable rd = plob.getattr(ResDrawable.class);
+        if (rd == null || rd.res == null)
+            return false;
+        try {
+            nurgling.planning.PlanningLayerManager plm = NUtils.getUI().core.planningLayer;
+            nurgling.sessions.commander.CommanderActions.ensureGhostLayer(plm);
+            String resName = rd.res.get().name;
+            byte[] sdtBytes = (rd.sdt != null) ? rd.sdt.clone().bytes() : null;
+            plm.addGhost(resName, sdtBytes, plob.rc, plob.a);
+            /* Keep placing more of the same, like the planner: right-click or Esc ends. */
+            return true;
+        } catch (Loading l) {
+            return true;
+        }
+    }
+
+    /** Cancel what is being placed (a right-click does the same). True when something was. */
+    public boolean cancelPlacing() {
+        Loader.Future<Plob> pl = this.placing;
+        if (pl == null)
+            return false;
+        if (pl.done()) {
+            Plob p = pl.get();
+            wdgmsg("place", p.rc.floor(OCache.posres), (int) Math.round(p.a * 32768 / Math.PI), 3, 0);
+        }
+        uimsg("unplace");
+        return true;
+    }
 
     public NMapView(Coord sz, Glob glob, Coord2d cc, long plgob)
     {
@@ -403,6 +440,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
         // Route waypoints and Forager's detour trail are now drawn by NWaypointOverlay instead.
 
+        commanderView.draw(g);
         squadView.draw(g);
     }
 
@@ -1336,6 +1374,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     public void tick(double dt)
     {
         squadView.tick();
+        commanderView.tick(dt);
         try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "area-overlays")) {
             checkTempMarks();
             synchronized (glob.map.areas)
@@ -1639,6 +1678,12 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             }
         }
 
+        /* Commander mode: a building chosen from the action menu is placed as a planner ghost (left button), for
+         * the squad to build with the Build order; the right button cancels as usual. */
+        if (ev.b == 1 && placing != null && nurgling.sessions.commander.CommanderActions.commanding(ui)
+            && commanderGhost())
+            return true;
+
         // Base planner interactions — only active while the window is open.
         nurgling.widgets.NBasePlannerWidget planner =
                 (NUtils.getGameUI() != null) ? NUtils.getGameUI().basePlanner : null;
@@ -1909,6 +1954,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     @Override
     public void mousemove(MouseMoveEvent ev) {
         lastCoord = ev.c;
+        if(commanderView.mousemove(ev.c))
+            return;
         if(squadView.mousemove(ev.c))
             return;
         if(wpGrab != null) {
@@ -1926,6 +1973,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     
     @Override
     public boolean mouseup(MouseUpEvent ev) {
+        if(commanderView.mouseup(ev))
+            return true;
         if(squadView.mouseup(ev))
             return true;
         if((holdGrab != null) && (ev.b == 1))
@@ -1957,6 +2006,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
     @Override
     public boolean keyup(KeyUpEvent ev) {
+        if(commanderView.keyup(ev.code))
+            return true;
         if(ev.code == 16) {
             shiftPressed = false;
             ttip.clear();
@@ -1974,6 +2025,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
         if(ev.code == 16) {
             shiftPressed = true;
         }
+        /* Commander mode: the arrow keys pan the camera. */
+        if(commanderView.keydown(ev.code))
+            return true;
         if(presetPlacer != null && presetPlacer.keydown(ev.code)) {
             return true;
         }

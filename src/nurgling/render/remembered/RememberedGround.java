@@ -31,11 +31,35 @@ public class RememberedGround {
     public static final int DETAILMIN = 25, DETAILMAX = 200, DETAILDEF = 100;
     /** Grids drawn at full detail at most, past the ones the live terrain stands on. */
     static final int FULLCAP = 16;
+    /* Commander mode draws few grids (live areas and marked ones): all of them at full detail, never as the blurry
+     * zoom cells, so ground coming into view is the ground it will stay. */
+    static final int COMMANDER_FULLCAP = 40;
+
+    private static int fullcap() {
+	return((filter != null) ? COMMANDER_FULLCAP : FULLCAP);
+    }
     static final int MAXLVL = 7;
     static final double LOCATEWAIT = 1.0, SETTINGSWAIT = 0.5, UPDATEWAIT = 0.1;
     static final float DEFFAR = 5000;
 
     private static volatile boolean on = false;
+
+    /**
+     * Commander mode: which recorded grids to draw. While one is set, remembered ground is on whatever the option
+     * says, and only these grids show. {@link #version()} changes whenever its answer may have.
+     */
+    public interface Filter {
+	boolean show(long seg, Coord sc, long gridid);
+	int version();
+    }
+    private static volatile Filter filter = null;
+
+    public static void filter(Filter f) {
+	if(filter != f) {
+	    filter = f;
+	    reload();
+	}
+    }
     private static volatile int range = RANGEDEF, wash = 50, detail = DETAILDEF;
     private static double setread = 0;
 
@@ -44,9 +68,11 @@ public class RememberedGround {
 	if(now - setread < SETTINGSWAIT)
 	    return;
 	setread = now;
-	on = Boolean.TRUE.equals(NConfig.get(NConfig.Key.rememberedGround));
+	on = (filter != null) || Boolean.TRUE.equals(NConfig.get(NConfig.Key.rememberedGround));
 	range = Utils.clip(intval(NConfig.Key.rememberedGroundRange, RANGEDEF), RANGEMIN, RANGEMAX);
-	wash = Utils.clip(intval(NConfig.Key.rememberedGroundWash, 50), 0, 100);
+	/* Commander mode shows remembered ground as it is: greyed, it would change colour under the camera each time
+	 * a session that sees it live takes the view. */
+	wash = (filter != null) ? 0 : Utils.clip(intval(NConfig.Key.rememberedGroundWash, 50), 0, 100);
 	detail = Utils.clip(intval(NConfig.Key.rememberedGroundDetail, DETAILDEF), DETAILMIN, DETAILMAX);
     }
 
@@ -76,6 +102,8 @@ public class RememberedGround {
 	 * null when unchanged since the last look. */
 	final Set<Coord> known;
 	final Set<Coord>[] occ;
+	/* The segment's grid count and the filter version the known set was made at. */
+	int srcsize = -1, fv = -1;
 	Located(MapFile.Segment seg, Coord off, Set<Coord> known, Set<Coord>[] occ) {
 	    this.seg = seg; this.off = off; this.known = known; this.occ = occ;
 	}
@@ -102,6 +130,7 @@ public class RememberedGround {
     private RenderTree.Slot snear, sfar;
     private float slotwash = -1;
     private Set<Coord> known = Collections.emptySet();
+    private int knownsrc = -1, knownfv = -1;
     @SuppressWarnings("unchecked")
     private Set<Coord>[] occ = new Set[MAXLVL + 1];
     private Defer.Future<Located> locating;
@@ -204,8 +233,11 @@ public class RememberedGround {
 		    seg = l.seg;
 		    off = l.off;
 		}
-		if(l.known != null)
+		if(l.known != null) {
 		    setknown(l.known, l.occ);
+		    knownsrc = l.srcsize;
+		    knownfv = l.fv;
+		}
 	    }
 	}
 	double now = Utils.rtime();
@@ -220,7 +252,9 @@ public class RememberedGround {
 	if(live.isEmpty())
 	    return;
 	final long curseg = (seg == null) ? 0 : seg.id;
-	final int cursize = known.size();
+	final int cursize = knownsrc, curfv = knownfv;
+	final Filter f = filter;
+	final int fv = (f == null) ? -1 : f.version();
 	locating = Defer.later(() -> {
 		Lock rl = file.lock.readLock();
 		if(!rl.tryLock())
@@ -237,12 +271,25 @@ public class RememberedGround {
 			Coord o = info.sc.sub((int)g[1], (int)g[2]);
 			/* Copied only when it changed: the segment's grids are
 			 * only ever added to, so the count tells. */
-			if((s.id == curseg) && (s.map.size() == cursize))
+			int size = s.map.size();
+			if((s.id == curseg) && (size == cursize) && (fv == curfv))
 			    return(new Located(s, o, null, null));
-			Set<Coord> k = new HashSet<>(s.map.keySet());
+			Set<Coord> k;
+			if(f == null) {
+			    k = new HashSet<>(s.map.keySet());
+			} else {
+			    k = new HashSet<>();
+			    for(Map.Entry<Coord, Long> e : s.map.entrySet()) {
+				if(f.show(s.id, e.getKey(), e.getValue()))
+				    k.add(e.getKey());
+			    }
+			}
 			rl.unlock();
 			locked = false;
-			return(new Located(s, o, k, occupancy(k)));
+			Located ret = new Located(s, o, k, occupancy(k));
+			ret.srcsize = size;
+			ret.fv = fv;
+			return(ret);
 		    }
 		    return(Located.NONE);
 		} finally {
@@ -339,7 +386,7 @@ public class RememberedGround {
 	    if((k.lvl == 0) && !forced.contains(k.sc))
 		full.add(k);
 	}
-	if(full.size() > FULLCAP) {
+	if(full.size() > fullcap()) {
 	    Map<Coord, List<FarGround.Key>> parents = new HashMap<>();
 	    for(FarGround.Key k : out) {
 		if(k.lvl == 0)
@@ -356,7 +403,7 @@ public class RememberedGround {
 	    Set<FarGround.Key> gone = new HashSet<>();
 	    List<FarGround.Key> add = new ArrayList<>();
 	    for(FarGround.Key pk : ps) {
-		if(nfull <= FULLCAP)
+		if(nfull <= fullcap())
 		    break;
 		List<FarGround.Key> ch = parents.get(pk.sc);
 		gone.addAll(ch);
@@ -376,7 +423,7 @@ public class RememberedGround {
 	gz = cc.z;
 	/* A cell splits while it is larger than split x its distance; more
 	 * detail splits sooner. */
-	split = 50.0 / detail;
+	split = (filter != null) ? 0 : (50.0 / detail);
 	rng = range;
 	kdist.clear();
 	cs = Coord2d.of(cc.x, cc.y).floor(tilesz).div(cmaps).add(off);
@@ -485,6 +532,24 @@ public class RememberedGround {
 	    locating = null;
 	}
 	lastloc = lastupdate = 0;
+    }
+
+    /** The recorded ground's height at a point of the session, or NaN where nothing recorded is held. */
+    public double height(Coord2d pc) {
+	RecallMap s = src;
+	if(s == null)
+	    return(Double.NaN);
+	try {
+	    return(s.map.getcz(pc));
+	} catch(Loading l) {
+	    return(Double.NaN);
+	}
+    }
+
+    /** The segment this is placed in, or 0. */
+    public long segment() {
+	MapFile.Segment s = seg;
+	return((s == null) ? 0 : s.id);
     }
 
     public String stats() {

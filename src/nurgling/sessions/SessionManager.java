@@ -70,6 +70,12 @@ public class SessionManager {
 
     /** Characters selected for squad orders; declared after {@code listeners}, which it registers in. */
     private final nurgling.sessions.squad.Squad squad = new nurgling.sessions.squad.Squad(this);
+    private final nurgling.sessions.commander.Commander commander = new nurgling.sessions.commander.Commander(this);
+
+    /** The RTS layer over the squad: the commander camera, theaters, alerts. */
+    public nurgling.sessions.commander.Commander commander() {
+        return commander;
+    }
 
     /** "Log in to several": its groups and the run in progress. */
     private final nurgling.sessions.multilogin.MultiLogin multiLogin = new nurgling.sessions.multilogin.MultiLogin();
@@ -366,6 +372,8 @@ public class SessionManager {
 
     private void switchToSessionInternal(SessionContext newActive, boolean keepCamera) {
         SessionContext oldActive = activeSession;
+        if (oldActive != newActive)
+            nurgling.sessions.commander.SwitchTrace.begin(oldActive, newActive);
 
         // Capture camera state from old session if sync is enabled
         pendingCameraState = null;
@@ -504,6 +512,12 @@ public class SessionManager {
         SessionContext pending = pendingSwitchTo;
         pendingSwitchTo = null;
         return pending;
+    }
+
+    /** Put back a pending switch the direct path couldn't make, for the Bootstrap to pick up. */
+    public void restorePendingSwitchTo(SessionContext ctx) {
+        if (pendingSwitchTo == null)
+            pendingSwitchTo = ctx;
     }
 
     /**

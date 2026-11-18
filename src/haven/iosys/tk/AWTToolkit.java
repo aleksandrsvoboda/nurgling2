@@ -447,6 +447,7 @@ public abstract class AWTToolkit implements Toolkit {
 	private final Collection<EventListener> callbacks = new java.util.concurrent.CopyOnWriteArrayList<>();
 	private boolean excl = false;
 	private boolean focused;
+	private volatile boolean hovered = true;
 	private DropHandler drop = null;
 	private Sizing sizing = null;
 
@@ -518,8 +519,8 @@ public abstract class AWTToolkit implements Toolkit {
 		events.add(e);
 	    }
 
-	    public void mouseEntered(java.awt.event.MouseEvent e) {}
-	    public void mouseExited(java.awt.event.MouseEvent e) {}
+	    public void mouseEntered(java.awt.event.MouseEvent e) {hovered = true;}
+	    public void mouseExited(java.awt.event.MouseEvent e) {hovered = false;}
 	    public void mouseClicked(java.awt.event.MouseEvent e) {}
 	    public synchronized void mousePressed(java.awt.event.MouseEvent e) {
 		events.add(e);
@@ -795,6 +796,10 @@ public abstract class AWTToolkit implements Toolkit {
 
 	public boolean focused() {
 	    return(focused);
+	}
+
+	public boolean hovered() {
+	    return(hovered);
 	}
 
 	public Clipboard clipboard(Object id) {
