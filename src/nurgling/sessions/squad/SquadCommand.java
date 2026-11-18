@@ -1,5 +1,7 @@
 package nurgling.sessions.squad;
 
+import haven.Coord;
+
 /**
  * An order posted to one member's inbox. Commands carry only immutable data: positions as {@link WorldRef}, gobs as id
  * plus position and resource name, so the member can resolve them in its own session.
@@ -48,15 +50,18 @@ public abstract class SquadCommand {
         public final long seq;
         /** This member's own side of the object to walk to first, or null to go to the nearest spot. */
         public final WorldRef approach;
+        /** Where on the map view the player clicked, sent with the right-click: windows open centred there. */
+        public final Coord screen;
 
-        public Interact(long gobId, WorldRef gobPos, String resName, long seq, WorldRef approach, boolean pathfind,
-                        boolean stopBots) {
+        public Interact(long gobId, WorldRef gobPos, String resName, long seq, WorldRef approach, Coord screen,
+                        boolean pathfind, boolean stopBots) {
             super(pathfind, stopBots);
             this.gobId = gobId;
             this.gobPos = gobPos;
             this.resName = resName;
             this.seq = seq;
             this.approach = approach;
+            this.screen = (screen == null) ? null : Coord.of(screen.x, screen.y);
         }
     }
 
@@ -69,6 +74,33 @@ public abstract class SquadCommand {
             super(false, false);
             this.option = option;
             this.seq = seq;
+        }
+
+        @Override
+        public boolean takesCharacter() {
+            return false;
+        }
+    }
+
+    /**
+     * A road picked in the milestone window an {@link Interact} opened. The road is its row name and which of the rows
+     * with that name it is. With a trip (Travel) the member takes its turn in it; without one (Follow) it presses the
+     * button at once. A null button only ends the wait: the player pressed it there.
+     */
+    public static final class PickRoad extends SquadCommand {
+        public final String road;
+        public final int n;
+        public final String button;
+        public final long seq;
+        public final RoadTrip trip;
+
+        public PickRoad(String road, int n, String button, long seq, RoadTrip trip) {
+            super(false, false);
+            this.road = road;
+            this.n = n;
+            this.button = button;
+            this.seq = seq;
+            this.trip = trip;
         }
 
         @Override

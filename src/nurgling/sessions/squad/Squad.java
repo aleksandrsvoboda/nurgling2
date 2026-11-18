@@ -6,6 +6,7 @@ import nurgling.NGameUI;
 import nurgling.i18n.L10n;
 import nurgling.sessions.SessionContext;
 import nurgling.sessions.SessionManager;
+import nurgling.widgets.MilestoneWindowExtension;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -21,8 +22,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * published {@link MemberReport}s, and post orders to the members' inboxes.
  */
 public class Squad implements SessionManager.SessionChangeListener {
-    /** How long a squad Interact waits for its flower menu pick. */
-    private static final long INTERACT_MS = 40000;
+    /** How long a squad Interact takes a flower menu or road pick (members' milestone windows wait as long). */
+    private static final long INTERACT_MS = 120000;
 
     private final SessionManager sm;
     private final LinkedHashSet<String> selected = new LinkedHashSet<>();
@@ -40,6 +41,7 @@ public class Squad implements SessionManager.SessionChangeListener {
     private volatile long interactUntil;
     private volatile Set<String> interactMembers = Collections.emptySet();
     private volatile long proxyShownSeq = -1;
+    private volatile RoadTrip trip;
 
     /** The last move order, kept for the map markers. Slots are per session id. */
     public static final class Order {
@@ -551,8 +553,11 @@ public class Squad implements SessionManager.SessionChangeListener {
             c.squadInbox.add(new SquadCommand.SetSpeed(speed));
     }
 
-    /** Every member right-clicks this gob of the viewpoint. */
-    public void interact(Gob gob) {
+    /**
+     * Every member right-clicks this gob of the viewpoint. {@code screen} is where on the map view the player clicked:
+     * the server centres the windows the click opens (a milestone's, a container's) on that spot.
+     */
+    public void interact(Gob gob, Coord screen) {
         NGameUI vp = gui(viewpoint());
         List<SessionContext> m = members();
         if (vp == null || gob == null || gob.ngob == null || announceEmpty(vp, m))
@@ -564,13 +569,14 @@ public class Squad implements SessionManager.SessionChangeListener {
         }
         Set<String> ids = new HashSet<>();
         boolean pf = pathfind(), sb = stopBots();
-        List<Coord2d> sides = spreadAround(gob, m, vp);
+        List<Coord2d> sides = MilestoneWindowExtension.isPost(gob.ngob.name) ? awayFrom(gob, m, vp)
+                                                                             : spreadAround(gob, m, vp);
         MCache map = vp.map.glob.map;
         MiniMap.Location sl = SquadExecutor.sessloc(vp);
         for (int i = 0; i < m.size(); i++) {
             SessionContext c = m.get(i);
             WorldRef side = (sides == null) ? null : WorldRef.of(map, sl, sides.get(i));
-            c.squadInbox.add(new SquadCommand.Interact(gob.id, at, gob.ngob.name, seq, side, pf, sb));
+            c.squadInbox.add(new SquadCommand.Interact(gob.id, at, gob.ngob.name, seq, side, screen, pf, sb));
             ids.add(c.sessionId);
         }
         interactMembers = Collections.unmodifiableSet(ids);
@@ -591,6 +597,17 @@ public class Squad implements SessionManager.SessionChangeListener {
         if (Formation.centroid(pos) == null)
             return null;
         return Formation.aroundObject(pos, gob.rc, reach(gob), 1.5 * MCache.tilesz.x);
+    }
+
+    /**
+     * Where each member waits by a milestone it can't see yet: a few tiles out, clear of the post's one travel spot.
+     * Members that see the post open it from where they stand.
+     */
+    private static List<Coord2d> awayFrom(Gob gob, List<SessionContext> m, NGameUI vp) {
+        List<Coord2d> pos = new ArrayList<>();
+        for (SessionContext c : m)
+            pos.add(localOf(c, vp));
+        return Formation.aroundObject(pos, gob.rc, reach(gob) + 3 * MCache.tilesz.x, 1.5 * MCache.tilesz.x);
     }
 
     /** How far from its centre a character stands to touch this gob: its hitbox plus a little. */
@@ -634,6 +651,40 @@ public class Squad implements SessionManager.SessionChangeListener {
         if (st.flowerSeq != seq || st.flowerOptions == null || Thread.currentThread() == st.thread)
             return;
         pickFlower(option, vp);
+    }
+
+    /**
+     * The user pressed a road button in a milestone window. When that window is the viewpoint's share of a squad
+     * Interact, the rest of the squad takes the same road: Follow at once, Travel one at a time after the viewpoint has
+     * arrived (see {@link RoadTrip}). The members still at the post or on their way there join the trip.
+     */
+    public void onRoadButton(UI ui, String road, int n, String button) {
+        SessionContext vp = viewpoint();
+        long seq = currentInteract();
+        if (vp == null || vp.ui != ui || seq < 0 || !interactMembers.contains(vp.sessionId))
+            return;
+        SquadExecutor.State st = vp.squadState;
+        if (st.roadSeq != seq || Thread.currentThread() == st.thread)
+            return;
+        RoadTrip t = null;
+        if ("Travel".equals(button)) {
+            List<String> queue = new ArrayList<>();
+            for (SessionContext c : sm.getAllSessions())
+                if (c != vp && interactMembers.contains(c.sessionId) && c.squadState.thread() != null)
+                    queue.add(c.sessionId);
+            t = new RoadTrip(seq, road, n, vp.sessionId, queue);
+        }
+        trip = t;
+        for (SessionContext c : sm.getAllSessions())
+            if (interactMembers.contains(c.sessionId))
+                c.squadInbox.add(new SquadCommand.PickRoad(road, n, (c == vp) ? null : button, seq, t));
+        interactUntil = 0;
+    }
+
+    /** The milestone trip of this Interact, or null. */
+    RoadTrip trip(long seq) {
+        RoadTrip t = trip;
+        return (t != null && t.seq == seq) ? t : null;
     }
 
     /**
