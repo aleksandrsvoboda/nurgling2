@@ -47,6 +47,9 @@ public interface Windeye {
     public Coord size();
     public State state();
     public boolean focused();
+    /* nurgling: whether the mouse is over the window (edge scrolling must
+     * stop when it leaves); toolkits that can't tell say yes. */
+    public default boolean hovered() {return(true);}
     public default Visibility visible() {return(Visibility.UNKNOWN);}
 
     public Environment env();

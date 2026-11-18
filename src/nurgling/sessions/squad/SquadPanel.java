@@ -90,7 +90,8 @@ public class SquadPanel extends Widget {
         if (ui.core != null && ui.core.mode == NCore.Mode.DRAG)
             return true;
         Squad sq = squad();
-        return sq.commander() || sq.members().size() >= 2;
+        /* In Commander mode the Commander screen's cards and order panel take its place. */
+        return !sq.commander() && sq.members().size() >= 2;
     }
 
     private Tex text(String s, Color col) {

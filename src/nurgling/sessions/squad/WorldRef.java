@@ -56,6 +56,15 @@ public final class WorldRef {
         }
         Coord2d seg = (sessloc == null) ? null : toSegment(sessloc.tc, local);
         long segId = (sessloc == null) ? 0 : sessloc.seg.id;
+        if (gid < 0 && seg != null) {
+            /* Not loaded here, but recorded in the map: its grid id still lets chunk navigation route there. */
+            Coord sc = gridOf(seg);
+            Long id = sessloc.seg.map.get(sc);
+            if (id != null) {
+                gid = id;
+                off = seg.sub(sc.x * GRID, sc.y * GRID);
+            }
+        }
         if (gid < 0 && seg == null)
             return null;
         return new WorldRef(gid, off, segId, seg);
@@ -98,11 +107,11 @@ public final class WorldRef {
     }
 
     /** Local world position to segment world position, given the session's segment tile at its local origin. */
-    static Coord2d toSegment(Coord sessTc, Coord2d local) {
+    public static Coord2d toSegment(Coord sessTc, Coord2d local) {
         return local.add(sessTc.x * MCache.tilesz.x, sessTc.y * MCache.tilesz.y);
     }
 
-    static Coord2d fromSegment(Coord sessTc, Coord2d segPos) {
+    public static Coord2d fromSegment(Coord sessTc, Coord2d segPos) {
         return segPos.sub(sessTc.x * MCache.tilesz.x, sessTc.y * MCache.tilesz.y);
     }
 

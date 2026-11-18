@@ -366,6 +366,8 @@ public class NCore extends Widget
         }
         /* Squad orders run on this session's own thread: the render loop when visible, the headless loop otherwise. */
         nurgling.sessions.squad.SquadExecutor.tick((NUI) ui);
+        /* The commander camera's warm-up of this session, when it is in the background. */
+        nurgling.sessions.commander.CommanderTick.tick((NUI) ui);
     }
 
     private void tickMeasured(double dt) {

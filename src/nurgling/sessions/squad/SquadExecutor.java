@@ -31,7 +31,7 @@ import static haven.OCache.posres;
  */
 public final class SquadExecutor {
     /** Player characters; used to find a character by position when its gob id doesn't match. */
-    static final String PLAYER_RES = "gfx/borka/body";
+    public static final String PLAYER_RES = "gfx/borka/body";
     private static final long REPORT_MS = 200;
     private static final long FLOWER_WAIT_MS = 30000;
     /** How long a milestone window is held for the squad's road pick: reading the roads takes a while. */
@@ -59,6 +59,11 @@ public final class SquadExecutor {
         volatile SquadCommand.PickRoad roadPick;
         volatile boolean dirty;
         long lastReport;
+        /** Orders queued after the running one (Shift+right-click). Touched by the session's own tick only. */
+        final java.util.ArrayDeque<SquadCommand> queue = new java.util.ArrayDeque<>();
+        /** Main inventory cells, re-counted about once a second. */
+        int invFree = -1, invTotal = -1;
+        long invAt;
 
         void set(MemberReport.Status s, String d) {
             status = s;
@@ -86,10 +91,34 @@ public final class SquadExecutor {
         if (ctx == null || gui == null || gui.map == null)
             return;
         SquadCommand c;
-        while ((c = ctx.squadInbox.poll()) != null)
-            handle(ctx, gui, c);
         State st = ctx.squadState;
+        while ((c = ctx.squadInbox.poll()) != null) {
+            if (c instanceof SquadCommand.Queued) {
+                SquadCommand o = ((SquadCommand.Queued) c).order;
+                if (st.thread() != null || !st.queue.isEmpty() || moving(gui.map.player())) {
+                    st.queue.add(o);
+                    st.dirty = true;
+                    continue;
+                }
+                c = o;
+            } else if (c.takesCharacter() || c instanceof SquadCommand.Stop) {
+                /* A new order replaces whatever was queued. */
+                if (!st.queue.isEmpty()) {
+                    st.queue.clear();
+                    st.dirty = true;
+                }
+            }
+            handle(ctx, gui, c);
+        }
+        if (!st.queue.isEmpty() && st.thread() == null && !moving(gui.map.player())) {
+            handle(ctx, gui, st.queue.poll());
+            st.dirty = true;
+        }
         long now = System.currentTimeMillis();
+        if (now - st.invAt >= 1000) {
+            st.invAt = now;
+            countInventory(gui, st);
+        }
         if (st.dirty || now - st.lastReport >= REPORT_MS) {
             st.lastReport = now;
             st.dirty = false;
@@ -124,8 +153,27 @@ public final class SquadExecutor {
         }
         String name = (gui.chrid == null || gui.chrid.isEmpty()) ? ctx.getDisplayName() : gui.chrid;
         int speed = (gui.speedget == null) ? -1 : gui.speedget.cur;
+        IMeter.Meter stm = gui.getmeter("stam", 0), nrj = gui.getmeter("nrj", 0);
+        List<WorldRef> queued = new ArrayList<>();
+        for (SquadCommand q : st.queue) {
+            if (q instanceof SquadCommand.Move)
+                queued.add(((SquadCommand.Move) q).target);
+            else if (q instanceof SquadCommand.Interact)
+                queued.add(((SquadCommand.Interact) q).gobPos);
+        }
         return new MemberReport(gui.getGenus(), name, gui.map.plgob, pos, hp, speed, s, detail,
-                                st.flowerOptions, st.flowerSeq, now);
+                                st.flowerOptions, st.flowerSeq, now, (stm == null) ? -1 : stm.a, (nrj == null) ? -1 : nrj.a,
+                                st.invFree, st.invTotal, Collections.unmodifiableList(queued));
+    }
+
+    /** Free and usable cells of the main inventory, from its widgets (no task: this runs in the session's tick). */
+    private static void countInventory(NGameUI gui, State st) {
+        Widget inv = gui.maininv;
+        if (inv instanceof NInventory) {
+            NInventory ni = (NInventory) inv;
+            st.invFree = ni.calcFreeSpace();
+            st.invTotal = ni.calcTotalSpace();
+        }
     }
 
     static boolean moving(Gob g) {
@@ -176,6 +224,7 @@ public final class SquadExecutor {
         if (c instanceof SquadCommand.Stop) {
             /* Plugins hear a stop too (to drop their own jobs), but can't keep core from stopping. */
             offer(ctx, gui, c);
+            st.queue.clear();
             cancel(st);
             Gob pl = gui.map.player();
             if (pl != null)
@@ -202,7 +251,17 @@ public final class SquadExecutor {
         }
         if (c instanceof SquadCommand.Custom)
             return;
+        if (c instanceof SquadCommand.RunScenario) {
+            NUI nui = (NUI) gui.ui;
+            if (nui.core != null && nui.core.scenarioManager != null)
+                nui.core.scenarioManager.executeScenarioByName(((SquadCommand.RunScenario) c).name, gui);
+            return;
+        }
         cancel(st);
+        if (c instanceof SquadCommand.UseAction) {
+            start(ctx, st, MemberReport.Status.INTERACTING, new UseActionAction(((SquadCommand.UseAction) c).resName, st));
+            return;
+        }
         if (c instanceof SquadCommand.Move) {
             SquadCommand.Move m = (SquadCommand.Move) c;
             if (!m.pathfind) {
@@ -683,6 +742,43 @@ public final class SquadExecutor {
         @Override
         public boolean check() {
             return st.pickSet || ui.findInRoot(NFlowerMenu.class) != fm || System.currentTimeMillis() > until;
+        }
+    }
+
+    /** Use a menu entry of this session's own action menu, once its resource has loaded here. */
+    static final class UseActionAction implements Action {
+        private final String resName;
+        private final State st;
+
+        UseActionAction(String resName, State st) {
+            this.resName = resName;
+            this.st = st;
+        }
+
+        @Override
+        public Results run(NGameUI gui) throws InterruptedException {
+            if (gui.menu == null)
+                return Results.FAIL();
+            final MenuGrid.Pagina pag = gui.menu.paginafor(Resource.remote().load(resName));
+            NUtils.addTask(new NTask() {
+                {
+                    infinite = false;
+                }
+
+                @Override
+                public boolean check() {
+                    try {
+                        pag.button();
+                        return true;
+                    } catch (Loading l) {
+                        return false;
+                    }
+                }
+            });
+            /* The button itself, not MenuGrid.use: in Commander mode that hands entries to the squad again. */
+            pag.button().use(new MenuGrid.Interaction(1, 0, null, null));
+            st.set(MemberReport.Status.IDLE);
+            return Results.SUCCESS();
         }
     }
 

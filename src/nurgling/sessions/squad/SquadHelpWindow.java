@@ -16,6 +16,8 @@ public class SquadHelpWindow extends Window {
 
     private static final String[][] SECTIONS = {
         {"mode_title", "mode_text", "-mode_on", "-mode_frame", "-mode_off"},
+        {"cmdr_title", "cmdr_text", "-cmdr_camera", "-cmdr_minimap", "-cmdr_theaters", "-cmdr_ground", "-cmdr_orders",
+         "-cmdr_cards", "-cmdr_card", "-cmdr_alerts", "-cmdr_keys", "-cmdr_build", "cmdr_bots"},
         {"select_title", "-select_click", "-select_shift", "-select_box", "-select_double", "-select_ground",
          "-select_all", "-select_tab", "-select_panel", "select_view", "select_limits"},
         {"cmd_title", "-cmd_move", "-cmd_use", "-cmd_road", "-cmd_map", "-cmd_stop", "-cmd_rally", "-cmd_follow"},

@@ -48,15 +48,18 @@ public class NBootstrap extends Bootstrap {
         SessionContext switchTo = sm.consumePendingSwitchTo();
 
         if (switchTo != null && switchTo.session != null) {
+            nurgling.sessions.commander.SwitchTrace.mark("bootstrap");
             // Promote the session from headless to visual mode
             switchTo.promoteToVisual(ui.getenv());
+            nurgling.sessions.commander.SwitchTrace.mark("promoted");
 
             // Apply pending camera state if camera sync is enabled
             sm.applyPendingCameraState(switchTo);
 
-            // Give the background message loop a moment to exit cleanly
+            // Wait for the background message loop to let go of the session
             // The PromotedMessage will cause it to exit, but we need to wait
-            Thread.sleep(100);
+            switchTo.awaitBackgroundLoop(1000);
+            nurgling.sessions.commander.SwitchTrace.mark("slept");
 
             // Return a NRemoteUI connected to the existing session
             // This skips the login screen and goes straight to the game

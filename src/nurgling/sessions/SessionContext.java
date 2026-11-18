@@ -250,7 +250,11 @@ public class SessionContext {
         }
 
         headless = true;
-        keepMeshes(false);
+        /* Commander mode keeps a session the camera is next to warm: dropping its meshes now would only rebuild them. */
+        if (camTarget == null)
+            keepMeshes(false);
+        else
+            warmedMeshes = true;
 
         // Clear path line visualization - prevents frozen lines when switching back
         NGameUI gui = getGameUI();
@@ -276,6 +280,33 @@ public class SessionContext {
         }
 
         startHeadlessTick();
+    }
+
+    /**
+     * Commander camera: where the viewpoint wants this (headless) session ready to be shown, or null. The session
+     * keeps its ground built around that point in its own tick (CommanderTick), so a switch to it shows at once.
+     */
+    public volatile nurgling.sessions.commander.Focus camTarget;
+    /** Set by the session itself: its ground around {@link #camTarget} is all built. */
+    public volatile boolean warmReady;
+    /** Set by the render thread (CommanderPrime): its view has been drawn off screen and is ready to show. */
+    public volatile boolean primeReady;
+    /** Written by the session's own tick only (CommanderTick). */
+    public long warmUntil;
+    public boolean warmedMeshes;
+
+    /** The thread running this session's background message loop while it is headless, or null. */
+    volatile Thread bgLoop;
+
+    /**
+     * Wait until the background message loop has let go of the session (it exits on the PromotedMessage that
+     * {@link #promoteToVisual} sends), so two threads never read its messages at once.
+     */
+    public void awaitBackgroundLoop(long ms) throws InterruptedException {
+        Thread t = bgLoop;
+        if (t != null && t != Thread.currentThread())
+            t.join(ms);
+        bgLoop = null;
     }
 
     /**
@@ -330,6 +361,14 @@ public class SessionContext {
         headless = false;
         // After the headless thread has stopped, so its last tick can't drop meshes the visible session now needs
         keepMeshes(true);
+        NGameUI vgui = getGameUI();
+        if (vgui != null) {
+            /* What changed in its scene while it was in the background is built in the first frame, not over many. */
+            if (vgui.map != null)
+                vgui.map.settle();
+            /* Commander mode: the character's own widgets are hidden before its first frame, not after. */
+            vgui.commanderScreen.enter();
+        }
 
         // Signal background message loop to exit
         if (session != null) {

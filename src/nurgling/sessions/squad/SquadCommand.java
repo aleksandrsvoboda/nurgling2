@@ -31,6 +31,44 @@ public abstract class SquadCommand {
         }
     }
 
+    /**
+     * Do {@code order} after everything this member was told before (Shift+right-click): it waits in the member's
+     * queue while a squad order runs, and starts at once when none does.
+     */
+    public static final class Queued extends SquadCommand {
+        public final SquadCommand order;
+
+        public Queued(SquadCommand order) {
+            super(order.pathfind, order.stopBots);
+            this.order = order;
+        }
+
+        @Override
+        public boolean takesCharacter() {
+            return order.takesCharacter();
+        }
+    }
+
+    /** Use a menu entry (by resource name) from this member's own action menu (Commander's action UI). */
+    public static final class UseAction extends SquadCommand {
+        public final String resName;
+
+        public UseAction(String resName) {
+            super(false, false);
+            this.resName = resName;
+        }
+    }
+
+    /** Run a scenario (by name) in this member's session (Commander's quick bar). */
+    public static final class RunScenario extends SquadCommand {
+        public final String name;
+
+        public RunScenario(String name) {
+            super(false, false);
+            this.name = name;
+        }
+    }
+
     public static final class Stop extends SquadCommand {
         public Stop() {
             super(false, false);

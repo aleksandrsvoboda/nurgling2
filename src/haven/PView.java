@@ -342,7 +342,62 @@ public abstract class PView extends Widget {
     }
 
     protected void maindraw(Render out) {
+	if(settle) {
+	    /* Build it all now (see settle()); one long frame, nothing popping in. */
+	    settle = false;
+	    back.async(false);
+	    try {
+		back.draw(out);
+	    } finally {
+		back.async(true);
+	    }
+	    return;
+	}
 	back.draw(out);
+    }
+
+    /* nurgling: the next frame builds every pending draw slot and waits
+     * for every pipeline instead of spreading that over many frames: a
+     * view coming on screen (first time, or after a session switch) shows
+     * complete at once rather than filling in piece by piece. */
+    private volatile boolean settle = false;
+
+    public void settle() {
+	settle = true;
+    }
+
+    /* nurgling: draw this view's scene where it can't be seen (g is a
+     * clip nobody looks at), so a view that is not on screen loads its
+     * textures and meshes, keeps its draw list current and adapts its
+     * exposure: when it comes on screen it is ready (Commander's warm
+     * sessions). Frames so drawn count as frames for it. */
+    private int primed = 0;
+
+    public boolean prime(GOut g) {
+	if(disposed)
+	    return(false);
+	try {
+	    lights();
+	} catch(RenderTree.SlotRemoved e) {
+	    disposed = true;
+	    return(false);
+	}
+	if(!render3d(g))
+	    return(false);
+	primed++;
+	return(true);
+    }
+
+    /* How many frames this view has drawn off screen, and whether its draw list has slots still to build. */
+    public int primed() {
+	return(primed);
+    }
+
+    public boolean drawPending() {
+	DrawList b = back;
+	if(b instanceof DeferredDrawList)
+	    b = ((DeferredDrawList)b).back;
+	return((b == null) || ((b instanceof haven.render.vk.VkDrawList) && ((haven.render.vk.VkDrawList)b).pending() > 0));
     }
 
     public void gtick(Render out) {

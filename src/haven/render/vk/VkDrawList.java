@@ -1098,6 +1098,11 @@ public class VkDrawList implements DrawList {
 	return(String.format("%,d", order.size()));
     }
 
+    /* nurgling: slots still to build (Commander's off-screen priming waits for none). */
+    public synchronized int pending() {
+	return(stale.size());
+    }
+
     public String toString() {
 	return(String.format("#<vk-drawlist %s>%s", env, (desc == null) ? "" : " (" + desc + ")"));
     }

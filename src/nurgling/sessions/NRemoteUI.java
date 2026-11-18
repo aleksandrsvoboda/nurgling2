@@ -130,6 +130,7 @@ public class NRemoteUI extends RemoteUI {
     @Override
     protected UI.Runner handleCustomMessage(PMessage msg, UI ui) {
         if (msg instanceof DetachMessage) {
+            nurgling.sessions.commander.SwitchTrace.mark("detached");
             SessionManager sm = SessionManager.getInstance();
             SessionContext ctx = sm.findByUI(ui);
 
@@ -138,11 +139,42 @@ public class NRemoteUI extends RemoteUI {
                 spawnBackgroundMessageLoop(ui, ctx);
             }
 
+            /* Switching to another session that is in the game: hand this message loop straight to it. Going
+             * through a Bootstrap would first put an empty login screen on the window (the blink of a switch). */
+            SessionContext to = sm.consumePendingSwitchTo();
+            if (to != null) {
+                UI.Runner fast = switchDirect(to, ui);
+                if (fast != null)
+                    return fast;
+                sm.restorePendingSwitchTo(to);
+            }
+
             // Return a new Bootstrap to show login screen
             return new NBootstrap();
         }
 
         return null; // Continue normal processing
+    }
+
+    /**
+     * Takes over {@code to} (headless, in the game) from this message loop: promotes it, waits for its background
+     * message loop to let go of the session, and returns the runner that carries on with its messages. The window's
+     * loop then reuses its game UI as it is ({@link NUILifecycleListener#beforeNewUI}). Null when it can't be done
+     * this way (not in the game yet), and the switch takes the Bootstrap path instead.
+     */
+    private UI.Runner switchDirect(SessionContext to, UI from) {
+        if (to.session == null || to.ui == null || to.ui.gui == null || !to.isHeadless() || !to.isConnected())
+            return null;
+        to.promoteToVisual(from.getenv());
+        nurgling.sessions.commander.SwitchTrace.mark("promoted");
+        try {
+            to.awaitBackgroundLoop(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        nurgling.sessions.commander.SwitchTrace.mark("loop-free");
+        SessionManager.getInstance().applyPendingCameraState(to);
+        return new NRemoteUI(to.session);
     }
 
     /**
@@ -213,6 +245,7 @@ public class NRemoteUI extends RemoteUI {
         }, "RemoteUI-Background-" + ctx.sessionId);
 
         bgThread.setDaemon(true);
+        ctx.bgLoop = bgThread;
         bgThread.start();
     }
 

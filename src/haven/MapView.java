@@ -113,7 +113,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void resized() {
 	    float field = 0.5f;
 	    float aspect = ((float)sz.y) / ((float)sz.x);
-	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, 1, 5000);
+	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, 1, zfar());
 	}
 
 	public void apply(Pipe p) {
@@ -123,6 +123,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	
 	public abstract float angle();
 	public abstract void tick(double dt);
+
+	/* nurgling: jump to the current centre on the next tick instead of
+	 * easing there (a commander camera hand-over to another session). */
+	public void snap() {}
 
 	public String stats() {return("N/A");}
 
@@ -229,7 +233,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    
 	    float field = field(elev);
 	    view = haven.render.Camera.pointed(curc.add(camoff).add(0.0f, 0.0f, h), dist(elev), elev, angl);
-	    proj = Projection.frustum(-field, field, -ca * field, ca * field, 1, 5000);
+	    proj = Projection.frustum(-field, field, -ca * field, ca * field, 1, zfar());
 	}
 
 	public float angle() {
@@ -448,11 +452,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		vm = Location.makexlate(new Matrix4f(), corr).mul1(vm);
 	    }
 	    view = new haven.render.Camera(vm);
-	    proj = Projection.ortho(-field, field, -field * aspect, field * aspect, 1, 5000);
+	    proj = Projection.ortho(-field, field, -field * aspect, field * aspect, 1, zfar());
 	}
 
 	public float angle() {
 	    return(angl);
+	}
+
+	public void snap() {
+	    cc = null;
+	    jc = null;
 	}
 
 	public boolean click(Coord c) {
@@ -657,6 +666,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public void dispose() {
+		remembered.clear();
 		if(gobs!=null && gobs.slot!=null)
 			gobs.slot.remove();
 		if(clmaplist!=null)
@@ -792,6 +802,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public static class MapRaster extends RenderTree.Node.Track1 {
+	/* nurgling: in Commander mode the live ground covers the session's
+	 * whole loaded area (3x3 grids = 12x12 cuts) wherever the camera is
+	 * in it, so panning shows ground that is all there instead of a
+	 * patch of live ground chasing the camera through remembered ground. */
+	static final int COMMANDER_VIEW = 7;
+
+	static boolean commanderWide() {
+	    return(nurgling.sessions.SessionManager.getInstance().squad().commander());
+	}
 
 	public MapRaster(MCache map, int view)
 	{
@@ -828,7 +847,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    return;
 		}
 		Loading curload = null;
+		boolean wide = commanderWide();
 		for(Coord cc : area) {
+		    /* nurgling: the commander's wide area reaches past the loaded grids; never ask the server for those. */
+		    if(wide && !map.checkGrid(cc.div(MCache.cutn)))
+			continue;
 		    try {
 			T cut = getcut(cc);
 			Pair<T, RenderTree.Slot> cur = cuts.get(cc);
@@ -882,7 +905,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(NUtils.getGameUI()==null || NUtils.getGameUI().map == null)
 			return;
 		Coord cc = new Coord2d(NUtils.getGameUI().map.getcc()).floor(tilesz).div(MCache.cutsz);
-		area = new Area(cc.sub(view, view), cc.add(view, view).add(1, 1));
+		int r = commanderWide() ? COMMANDER_VIEW : view;
+		area = new Area(cc.sub(r, r), cc.add(r, r).add(1, 1));
 		lastload = null;
 	    } catch(Loading l) {
 		l.boostprio(5);
@@ -898,6 +922,60 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public final Terrain terrain;
+
+    /* nurgling: the ground of explored grids past the live terrain, drawn
+     * out of the map file (Options > World > Remembered ground). */
+    public final nurgling.render.remembered.RememberedGround remembered = new nurgling.render.remembered.RememberedGround(this);
+
+    /* The cameras' far plane: past the remembered ground while it is on. */
+    public float zfar() {
+	return(nurgling.render.remembered.RememberedGround.zfar(5000));
+    }
+
+    /* Whether the live terrain has this cut (session cut coords) in the scene. */
+    public boolean livecut(Coord cc) {
+	return(terrain.main.cuts.containsKey(cc));
+    }
+
+    /* nurgling: {cuts the live terrain has in the scene, cuts it wants}
+     * around the camera centre, or null before its first tick. */
+    public int[] terrainfill() {
+	Area a = terrain.area;
+	if(a == null)
+	    return(null);
+	int drawn = 0, wanted = 0;
+	for(Coord c : a) {
+	    /* Only cuts that can be built count: a cut reads into its neighbours, so one at the rim of the loaded
+	     * grids never builds (and Commander mode's area reaches past them). */
+	    if(!buildable(c))
+		continue;
+	    wanted++;
+	    if(terrain.main.cuts.containsKey(c))
+		drawn++;
+	}
+	return(new int[] {drawn, wanted});
+    }
+
+    private boolean buildable(Coord cut) {
+	for(int dx = -1; dx <= 1; dx++) {
+	    for(int dy = -1; dy <= 1; dy++) {
+		if(!glob.map.checkGrid(cut.add(dx, dy).div(MCache.cutn)))
+		    return(false);
+	    }
+	}
+	return(true);
+    }
+
+    /* The cuts the live terrain draws, or null before its first tick. */
+    public Area terrainarea() {
+	return(terrain.area);
+    }
+
+    /* Where the camera's eye is, in render coordinates (y inverted). */
+    public Coord3f cameye() {
+	return(camera.view.fin(Matrix4f.id).invert().mul4(Coord3f.o));
+    }
+
     public class Terrain extends MapRaster {
 	final Grid main = new Grid<MapMesh>() {
 		protected MapMesh getcut(Coord cc) {
@@ -1429,11 +1507,48 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(plcache = glob.oc.getgob(id));
     }
     
+    /* nurgling: the camera centre's offset from the player (:commander
+     * far/pan), or null to stay on the player. Where the ground under it is
+     * not loaded, the player's height stands in and ccfallback counts it. */
+    public volatile Coord2d ccoff = null;
+    public volatile int ccfallback = 0;
+    /* nurgling: the commander camera's point in this session's frame, or
+     * null to look at the player. Set by the commander (CommanderView on
+     * the session on screen, CommanderTick on a warm background one). */
+    public volatile Coord2d camfocus = null;
+    private float lastccz = 0;
+
     public Coord3f getcc() {
+	Coord2d cf = camfocus;
+	if(cf != null) {
+	    double z;
+	    try {
+		z = glob.map.getcz(cf);
+	    } catch(Loading l) {
+		z = remembered.height(cf);
+		if(Double.isNaN(z)) {
+		    ccfallback++;
+		    z = lastccz;
+		}
+	    }
+	    lastccz = (float)z;
+	    return(Coord3f.of((float)cf.x, (float)cf.y, (float)z));
+	}
 	Gob pl = NUtils.player();
-	if(pl != null)
-	    return(pl.getrenderc());
-	else
+	if(pl != null) {
+	    Coord2d off = ccoff;
+	    Coord3f pc = pl.getrenderc();
+	    lastccz = pc.z;
+	    if(off == null)
+		return(pc);
+	    Coord2d at = Coord2d.of(pc).add(off);
+	    try {
+		return(glob.map.getzp(at));
+	    } catch(Loading l) {
+		ccfallback++;
+		return(Coord3f.of((float)at.x, (float)at.y, pc.z));
+	    }
+	} else
 		return(glob.map.getzp(cc));
 	}
 
@@ -2135,6 +2250,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    if(!glob.map.meshes())
 			glob.map.dropmeshes();
 		}
+	}
+
+	try(nurgling.diagnostics.MovementTrace.Stage movementStage = nurgling.diagnostics.MovementTrace.stage(ui, "remembered-ground")) {
+		remembered.tick();
 	}
 
 	Loader.Future<Plob> placing = this.placing;
@@ -2842,6 +2961,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 	    }
 	});
+	cmdmap.put("recall", (cons, args) -> {
+	    cons.out.println(remembered.stats());
+	});
 	cmdmap.put("whyload", (cons, args) -> {
 	    Loading l = lastload;
 	    if(l == null)
@@ -2881,7 +3003,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 		@Override
 		public void chfield ( float nf ) {
-			if ( nf > 20 && nf < 800 ) {
+			/* nurgling: Commander mode zooms out further, RTS style. */
+			float max = nurgling.sessions.SessionManager.getInstance().squad().commander() ? 1600 : 800;
+			if ( nf > 20 && nf < max ) {
 				super.tfield = nf;
 			}
 		}

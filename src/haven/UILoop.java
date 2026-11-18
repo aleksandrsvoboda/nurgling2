@@ -360,6 +360,10 @@ public abstract class UILoop implements Console.Directory {
 	synchronized(ui) {
 	    ui.draw(g);
 	}
+	/* nurgling: Commander draws a warm background session's scene off screen, so it is ready to be shown. */
+	nurgling.sessions.commander.CommanderPrime.frame(ui, g);
+	/* nurgling: and the characters' own portraits in the Commander roster. */
+	nurgling.sessions.commander.CommanderPortraits.frame(ui, g);
 	/* nurgling: always-on FPS counter (was in GLPanel.display, bottom-left). */
 	if(layer == null)
 	    FastText.aprintf(g, new Coord(10, g.sz().y - UI.scale(10)), 0, 1, "FPS: %d", (this.wnd instanceof haven.iosys.tk.BridgeToolkit.BridgeWindow) ?
@@ -512,6 +516,7 @@ public abstract class UILoop implements Console.Directory {
 		f.ui.frameHistory.record(now);
 	}
 	if(f.movementTrace != null) f.movementTrace.finish(f, now);
+	nurgling.sessions.commander.CommanderProbe.frame(f.ui, now);
     }
 
     public static class Frame {

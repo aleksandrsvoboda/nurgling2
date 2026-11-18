@@ -219,6 +219,9 @@ public class SquadView {
     public boolean mousedown(Widget.MouseDownEvent ev) {
         if (!squad().commander() || !viewpoint() || inRoadPreview())
             return false;
+        /* Something is being placed (a building, as a ghost in Commander mode): its clicks place and cancel it. */
+        if (map.placing != null)
+            return false;
         Squad.TargetPick pick = squad().pendingPick();
         if (pick != null) {
             /* A plugin asked for a click on something; any other button cancels. */
@@ -235,12 +238,17 @@ public class SquadView {
             }
             return true;
         }
+        /* The keep-visible brush takes the buttons while painting. */
+        if (map.commanderView.mousedown(ev))
+            return true;
         if (ev.b == 1) {
             boxFrom = boxTo = ev.c;
             if (grab == null)
                 grab = map.ui.grabmouse(map);
             return true;
         }
+        /* Shift queues the order after what each member was told before. */
+        boolean queued = map.ui.modshift;
         if (ev.b == 3 && map.ui.modmeta) {
             /* Alt+right-click uses the object under the cursor; on bare ground (or a character) it is a move. */
             map.new Hittest(ev.c) {
@@ -248,9 +256,14 @@ public class SquadView {
                 protected void hit(Coord pc, Coord2d mc, ClickData inf) {
                     Gob g = clickedGob(inf);
                     if (g != null && !isPlayer(g))
-                        squad().interact(g, pc);
+                        squad().interact(g, pc, queued);
                     else
-                        squad().moveTo(mc);
+                        squad().moveTo(mc, queued);
+                }
+
+                @Override
+                protected void nohit(Coord pc) {
+                    moveToGround(pc, queued);
                 }
             }.run();
             return true;
@@ -261,12 +274,27 @@ public class SquadView {
             map.new Maptest(ev.c) {
                 @Override
                 protected void hit(Coord pc, Coord2d mc) {
-                    squad().moveTo(mc);
+                    squad().moveTo(mc, queued);
+                }
+
+                @Override
+                protected void nohit(Coord pc) {
+                    moveToGround(pc, queued);
                 }
             }.run();
             return true;
         }
         return false;
+    }
+
+    /**
+     * A right-click on ground with nothing clickable drawn: remembered ground, or the black past it. The commander camera
+     * looks there freely, so orders go there too; the point comes from the view's own projection.
+     */
+    private void moveToGround(Coord pc, boolean queued) {
+        Coord2d at = map.commanderView.groundAt(pc);
+        if (at != null)
+            squad().moveTo(at, queued);
     }
 
     private static Gob clickedGob(ClickData inf) {
@@ -343,6 +371,16 @@ public class SquadView {
         return true;
     }
 
+    /** True while a selection box is being dragged. */
+    public boolean dragging() {
+        return grab != null;
+    }
+
+    /** Session ids of the squad characters this view has a gob for. */
+    public Set<String> seenIds() {
+        return seen.keySet();
+    }
+
     private void endBox() {
         if (grab != null) {
             grab.remove();
@@ -351,9 +389,9 @@ public class SquadView {
         boxFrom = boxTo = null;
     }
 
-    /** Screen position (feet) of every squad character in view. */
+    /** Screen position (feet) of every squad character in view, with the commander's markers of unseen ones. */
     private Map<String, Coord> screenPositions() {
-        Map<String, Coord> out = new HashMap<>();
+        Map<String, Coord> out = new HashMap<>(map.commanderView.ghosts());
         for (Map.Entry<String, Gob> e : seen.entrySet()) {
             Coord p = screen(e.getValue(), 0);
             if (p != null)
@@ -385,6 +423,13 @@ public class SquadView {
     private SessionContext memberAt(Coord c) {
         SessionContext best = null;
         int bd = PICK_PX * PICK_PX;
+        for (Map.Entry<String, Coord> e : map.commanderView.ghosts().entrySet()) {
+            int dx = e.getValue().x - c.x, dy = e.getValue().y - c.y, d = dx * dx + dy * dy;
+            if (d < bd) {
+                bd = d;
+                best = SessionManager.getInstance().getSession(e.getKey());
+            }
+        }
         for (Map.Entry<String, Gob> e : seen.entrySet()) {
             for (float lift : new float[]{0, 10, 18}) {
                 Coord p = screen(e.getValue(), lift);
@@ -422,13 +467,24 @@ public class SquadView {
 
     private boolean commanderKey(KeyEvent ev) {
         Squad sq = squad();
+        nurgling.sessions.commander.Commander cm = SessionManager.getInstance().commander();
         if (ev.getKeyCode() == KeyEvent.VK_ESCAPE) {
+            if (map.cancelPlacing())
+                return true;
+            if (cm.buildArmed()) {
+                cm.setBuildArmed(false);
+                return true;
+            }
             if (sq.pendingPick() != null)
                 sq.cancelPick();
+            else if (cm.painting())
+                cm.setPainting(false);
             else
                 sq.setCommander(false);
             return true;
         }
+        if (nurgling.sessions.commander.CommanderKeys.key(cm, sq, gui(), ev))
+            return true;
         if (kb_leader.key().match(ev)) {
             List<SessionContext> m = sq.members();
             NGameUI gui = gui();
@@ -467,9 +523,13 @@ public class SquadView {
                     gui.msg(L10n.get("squad.msg.group_set", n, sq.members().size()));
                 return true;
             }
-            /* Recalling also switches to the group when the character on screen is not in it (Squad.select). */
-            if (!sq.recallGroup(n) && gui != null)
-                gui.msg(L10n.get("squad.msg.group_empty", n));
+            /* Pressed twice quickly: the camera goes to the group as well. */
+            if (!sq.recallGroup(n)) {
+                if (gui != null)
+                    gui.msg(L10n.get("squad.msg.group_empty", n));
+            } else if (cm.doubled(code)) {
+                cm.centerSelection();
+            }
             return true;
         }
         for (SquadKeyHandler h : sq.keyHandlers())
@@ -533,17 +593,21 @@ public class SquadView {
         if (vp == null)
             return;
         drawOrder(g, sq, vp);
-        for (SessionContext ctx : sq.members()) {
+        /* In Commander mode every character gets its name and a health bar, RTS style; arrows point to the selected
+         * ones out of view. */
+        for (SessionContext ctx : sq.commander() ? sq.candidates() : sq.members()) {
             Gob gob = seen.get(ctx.sessionId);
             MemberReport r = ctx.squadReport;
+            boolean sel = sq.isSelected(ctx);
             Coord p = (gob == null) ? null : screen(gob, 22);
             if (p != null && p.x >= 0 && p.y >= 0 && p.x < map.sz.x && p.y < map.sz.y) {
                 if (sq.commander() && r != null) {
                     int grp = Squad.groupOf(r);
-                    String name = sq.isLeader(ctx) ? (CROWN + " " + r.name) : r.name;
-                    g.aimage(tag((grp > 0) ? (grp + " " + name) : name), p, 0.5, 1);
+                    String name = (sel && sq.isLeader(ctx)) ? (CROWN + " " + r.name) : r.name;
+                    g.aimage(tag((grp > 0) ? (grp + " " + name) : name), p.sub(0, UI.scale(6)), 0.5, 1);
+                    nurgling.sessions.commander.CommanderView.hpBar(g, p.sub(0, UI.scale(4)), r.hp);
                 }
-            } else {
+            } else if (sel && (gob != null || !map.commanderView.ghosts().containsKey(ctx.sessionId))) {
                 drawArrow(g, ctx, vp);
             }
         }
@@ -552,19 +616,27 @@ public class SquadView {
             g.rect(Coord.z, map.sz);
             g.rect(new Coord(1, 1), map.sz.sub(2, 2));
             Squad.TargetPick pick = sq.pendingPick();
-            String txt = (pick != null && pick.banner != null) ? pick.banner : L10n.get("squad.banner", sq.members().size());
-            if (!txt.equals(bannerText)) {
+            String txt = (pick != null && pick.banner != null) ? pick.banner : null;
+            if (txt == null && SessionManager.getInstance().commander().painting())
+                txt = L10n.get("commander.banner.paint");
+            if (txt == null && SessionManager.getInstance().commander().buildArmed())
+                txt = L10n.get("commander.banner.build");
+            if (txt == null && map.placing != null)
+                txt = L10n.get("commander.banner.place");
+            if (txt != null && !txt.equals(bannerText)) {
                 bannerText = txt;
                 banner = bannerFont().render(txt).tex();
             }
-            Coord bsz = banner.sz().add(UI.scale(16), UI.scale(8));
-            Coord bul = new Coord((map.sz.x - bsz.x) / 2, UI.scale(10));
-            g.chcolor(PANEL);
-            g.frect(bul, bsz);
-            g.chcolor(ORANGE);
-            g.rect(bul, bsz);
-            g.chcolor();
-            g.aimage(banner, bul.add(bsz.div(2)), 0.5, 0.5);
+            if (txt != null) {
+                Coord bsz = banner.sz().add(UI.scale(16), UI.scale(8));
+                Coord bul = new Coord((map.sz.x - bsz.x) / 2, UI.scale(118));
+                g.chcolor(PANEL);
+                g.frect(bul, bsz);
+                g.chcolor(ORANGE);
+                g.rect(bul, bsz);
+                g.chcolor();
+                g.aimage(banner, bul.add(bsz.div(2)), 0.5, 0.5);
+            }
             if (boxFrom != null && boxTo != null && !boxFrom.equals(boxTo)) {
                 Coord ul = new Coord(Math.min(boxFrom.x, boxTo.x), Math.min(boxFrom.y, boxTo.y));
                 Coord sz = new Coord(Math.abs(boxFrom.x - boxTo.x), Math.abs(boxFrom.y - boxTo.y));
@@ -702,22 +774,52 @@ public class SquadView {
         return true;
     }
 
-    /** Selected members as orange squares on the viewpoint's minimap. */
+    /** Commander mode: a press (or drag) at this spot of the viewpoint's minimap moves the camera there. */
+    public static boolean minimapCamera(MiniMap mm, MiniMap.Location loc) {
+        if (loc == null || !squad().commander() || !ownMinimap(mm))
+            return false;
+        Coord2d pos = Coord2d.of(loc.tc).mul(MCache.tilesz).add(MCache.tilesz.x / 2, MCache.tilesz.y / 2);
+        SessionManager.getInstance().commander().setFocus(new nurgling.sessions.commander.Focus(loc.seg.id, pos));
+        return true;
+    }
+
+    /**
+     * Squad characters on the viewpoint's minimap: selected ones orange. In Commander mode every character is shown
+     * (teal when not selected), and the part of the map the camera sees is outlined.
+     */
     public static void drawMinimap(MiniMap mm, GOut g) {
-        if (squad().isEmpty() || !ownMinimap(mm))
+        boolean cm = squad().commander();
+        if ((squad().isEmpty() && !cm) || !ownMinimap(mm))
             return;
         NGameUI vp = ((NUI) mm.ui).gui;
         int s = UI.scale(3);
-        for (SessionContext ctx : squad().members()) {
+        for (SessionContext ctx : cm ? squad().candidates() : squad().members()) {
             Coord2d at = Squad.localOf(ctx, vp);
             if (at == null)
                 continue;
             Coord c = mm.p2c(at);
             g.chcolor(Color.BLACK);
             g.frect(c.sub(s + 1, s + 1), new Coord(2 * s + 3, 2 * s + 3));
-            g.chcolor(ORANGE);
+            g.chcolor(squad().isSelected(ctx) ? ORANGE : TEAL);
             g.frect(c.sub(s, s), new Coord(2 * s + 1, 2 * s + 1));
         }
+        if (cm && vp.map instanceof NMapView)
+            drawCameraFrame(mm, g, (NMapView) vp.map);
         g.chcolor();
+    }
+
+    /** The ground the camera sees, as its four screen corners put on the ground, drawn on the minimap. */
+    private static void drawCameraFrame(MiniMap mm, GOut g, NMapView map) {
+        Coord[] sc = {Coord.z, Coord.of(map.sz.x, 0), map.sz, Coord.of(0, map.sz.y)};
+        Coord[] mc = new Coord[4];
+        for (int i = 0; i < 4; i++) {
+            Coord2d p = map.commanderView.groundAt(sc[i]);
+            if (p == null)
+                return;
+            mc[i] = mm.p2c(p);
+        }
+        g.chcolor(Color.WHITE);
+        for (int i = 0; i < 4; i++)
+            g.line(mc[i], mc[(i + 1) % 4], 1);
     }
 }

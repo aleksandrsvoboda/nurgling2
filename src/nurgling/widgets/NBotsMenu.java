@@ -1012,6 +1012,11 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
 
         void start(String path, Action action)
         {
+            /* Commander mode: the bot runs on every selected character instead of the one on screen. */
+            if (nurgling.sessions.commander.CommanderActions.commanding(NBotsMenu.this.ui)) {
+                nurgling.sessions.commander.CommanderActions.runBot(bot, NUtils.getGameUI());
+                return;
+            }
             NUI boundUI = NUtils.getUI();
             NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
@@ -1043,6 +1048,10 @@ public class NBotsMenu extends Widget implements NDraggableWidget.Turnable
                     NUI boundUI = NUtils.getUI();
                     NGameUI gui = (boundUI != null) ? boundUI.gui : null;
 
+                    if (nurgling.sessions.commander.CommanderActions.commanding(boundUI)) {
+                        nurgling.sessions.commander.CommanderActions.runBot(bot, gui);
+                        return;
+                    }
                     if (!active) {
                         if (gui != null && gui.recentActionsPanel != null) {
                             gui.recentActionsPanel.addBotAction(path, action);

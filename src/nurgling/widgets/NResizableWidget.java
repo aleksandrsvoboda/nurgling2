@@ -63,7 +63,9 @@ public class NResizableWidget extends NDraggableWidget
             nsz.x = Math.max(nsz.x, UI.scale(minSize.x));
             nsz.y = Math.max(nsz.y, UI.scale(minSize.y));
             resize(nsz);
-            NResizeProp.set(name, new NResizeProp( NResizableWidget.this.sz , name));
+            /* Commander mode keeps its own layout; the character's own size stays as it was. */
+            if (!nurgling.sessions.commander.CommanderLayout.record(this, target_c))
+                NResizeProp.set(name, new NResizeProp( NResizableWidget.this.sz , name));
         }
         else
         {
@@ -103,6 +105,11 @@ public class NResizableWidget extends NDraggableWidget
                 }
             }
         }
+    }
+
+    /** Set the size directly (Commander mode's layout), as a drag of the sizer would. */
+    public void setSize(Coord sz) {
+        super.resize(sz);
     }
 
     @Override

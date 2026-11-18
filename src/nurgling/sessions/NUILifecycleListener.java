@@ -31,6 +31,7 @@ public class NUILifecycleListener implements UILifecycleListener {
             if (ctx != null && ctx.ui != null) {
                 // Reuse existing session's UI instead of creating new
                 NUI existingUI = ctx.ui;
+                nurgling.sessions.commander.SwitchTrace.mark("reattached");
 
                 // Update the GL environment for rendering
                 if (loop != null) {
@@ -72,6 +73,8 @@ public class NUILifecycleListener implements UILifecycleListener {
         }
 
         SessionManager sm = SessionManager.getInstance();
+        if (newUI != null && sm.findByUI(newUI) == null)
+            nurgling.sessions.commander.SwitchTrace.mark("login-screen");
 
         // Process any pending session close (from closing active session)
         sm.processPendingClose();

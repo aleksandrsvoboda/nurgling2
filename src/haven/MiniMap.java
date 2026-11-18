@@ -159,7 +159,18 @@ public class MiniMap extends Widget
 	    Coord mc = new Coord2d(mv.getcc()).floor(MCache.tilesz);
 	    if(mc == null)
 		throw(new Loading("Waiting for initial location"));
-	    MCache.Grid plg = mv.ui.sess.glob.map.getgrid(mc.div(cmaps));
+	    MCache.Grid plg;
+	    try {
+		plg = mv.ui.sess.glob.map.getgrid(mc.div(cmaps));
+	    } catch(MCache.LoadingMap e) {
+		/* nurgling: the commander camera can look past the loaded grids; place it from any loaded one. Only
+		 * then: without it, waiting for the player's own grid is what keeps a fresh location right. */
+		if(mv.camfocus == null)
+		    throw(e);
+		plg = anyGrid(mv.ui.sess.glob.map);
+		if(plg == null)
+		    throw(e);
+	    }
 	    GridInfo info = file.gridinfo.get(plg.id);
 	    if(info == null)
 		throw(new Loading("No grid info, probably coming soon"));
@@ -167,6 +178,14 @@ public class MiniMap extends Widget
 	    if(seg == null)
 		throw(new Loading("No segment info, probably coming soon"));
 	    return(new Location(seg, info.sc.mul(cmaps).add(mc.sub(plg.ul))));
+	}
+
+	private static MCache.Grid anyGrid(MCache map) {
+	    synchronized(map.grids) {
+		for(MCache.Grid g : map.grids.values())
+		    return(g);
+	    }
+	    return(null);
 	}
     }
 
@@ -377,7 +396,9 @@ public class MiniMap extends Widget
 
     private Locator sesslocator;
     public void tick(double dt) {
-	if(setloc != null) {
+	/* nurgling: while the commander camera is dragged on the map, the map holds still under the cursor (following
+	 * the camera then would move the spot under the cursor, and the camera with it, again and again). */
+	if((setloc != null) && (camdrag == null)) {
 	    try {
 		Location loc = resolve(setloc);
 		center(loc);
@@ -1090,7 +1111,30 @@ public class MiniMap extends Widget
     private Location dsloc;
     private DisplayIcon dsicon;
     private DisplayMarker dsmark;
+    /* nurgling: Commander mode, the left button held on the map: the camera follows the cursor. */
+    protected UI.Grab camdrag;
+
+    /** nurgling: a left press that Commander mode takes to move the camera; true when it did. */
+    public boolean commanderPress(MouseDownEvent ev) {
+	if((ev.b != 1) || (ui.modflags() != 0) || !nurgling.sessions.squad.SquadView.minimapCamera(this, xlate(ev.c)))
+	    return(false);
+	if(camdrag == null)
+	    camdrag = ui.grabmouse(this);
+	return(true);
+    }
+
+    /** nurgling: the end of a Commander-mode camera drag; true when it was one. */
+    public boolean commanderRelease(MouseUpEvent ev) {
+	if((camdrag == null) || (ev.b != 1))
+	    return(false);
+	camdrag.remove();
+	camdrag = null;
+	return(true);
+    }
+
     public boolean mousedown(MouseDownEvent ev) {
+	if(commanderPress(ev))
+	    return(true);
 	if(ev.b == 3) {
 	    /* nurgling: Commander mode turns a right-click on the map into a squad move */
 	    if(nurgling.sessions.squad.SquadView.minimapClick(this, xlate(ev.c), ev.b)) {
@@ -1129,6 +1173,10 @@ public class MiniMap extends Widget
     }
 
     public void mousemove(MouseMoveEvent ev) {
+	if(camdrag != null) {
+	    nurgling.sessions.squad.SquadView.minimapCamera(this, xlate(ev.c));
+	    return;
+	}
 	if(drag != null) {
 	    if(dragging) {
 		setloc = null;
@@ -1142,6 +1190,8 @@ public class MiniMap extends Widget
     }
 
     public boolean mouseup(MouseUpEvent ev) {
+	if(commanderRelease(ev))
+	    return(true);
 	if((drag != null) && (ev.b == 1)) {
 	    drag.remove();
 	    drag = null;

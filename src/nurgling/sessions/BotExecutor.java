@@ -74,7 +74,17 @@ public class BotExecutor {
      */
     public static Thread runWithSupports(String name, Action action,
                                          boolean disableStacks, Runnable onComplete) {
-        NUI boundUI = NUtils.getUI();
+        return runWithSupports(NUtils.getUI(), name, action, disableStacks, onComplete);
+    }
+
+    /** As {@link #runWithSupports(String, Action, boolean, Runnable)}, on another session: Commander's bots on the selection. */
+    public static Thread runWithSupportsOn(SessionContext ctx, String name, Action action,
+                                           boolean disableStacks, Runnable onComplete) {
+        return runWithSupports((ctx == null) ? null : ctx.ui, name, action, disableStacks, onComplete);
+    }
+
+    private static Thread runWithSupports(NUI boundUI, String name, Action action,
+                                          boolean disableStacks, Runnable onComplete) {
         NGameUI gui = (boundUI != null) ? boundUI.gui : null;
         if (gui == null) return null;
 

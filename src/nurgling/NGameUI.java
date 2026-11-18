@@ -206,6 +206,8 @@ public class NGameUI extends GameUI
                                                              squadPanel.sz.add(NDraggableWidget.delta)));
         if(!squadPlaced)
             squadWdg.target_c = new Coord(sz.x - squadWdg.sz.x - UI.scale(20), UI.scale(220));
+        // Commander screen (Alt+G): theater bar, character cards, order panel, alerts; each hides itself outside the mode
+        nurgling.sessions.commander.CommanderHud.install(this);
         itemsForSearch = new NSearchItem();
         // Replace Cal with NCal to keep calendar customizations in nurgling package
         Widget oldCalendarWidget = null;
@@ -384,6 +386,8 @@ public class NGameUI extends GameUI
             forageRecorder.tick();
         if(pileWatch != null)
             pileWatch.tick();
+        /* Last, so widgets that show themselves every tick are hidden again before anything is drawn. */
+        commanderScreen.tick();
     }
 
     @Override
@@ -1354,6 +1358,8 @@ public class NGameUI extends GameUI
         } else togglewnd(atlasWindow);
     }
     private final java.util.List<Widget> photohidden = new java.util.ArrayList<>();
+    /** Commander mode's own screen: the character's widgets hidden while it is on. */
+    public final nurgling.sessions.commander.CommanderScreen commanderScreen = new nurgling.sessions.commander.CommanderScreen(this);
 
     public void photomode(boolean on) {
         if (on == nurgling.render.Photo.on)
@@ -1383,11 +1389,12 @@ public class NGameUI extends GameUI
         }
     }
 
-    /** Adds {@code :squad probe}; see nurgling.sessions.squad.SquadProbe. */
+    /** Adds {@code :squad probe} (nurgling.sessions.squad.SquadProbe) and {@code :commander} (nurgling.sessions.commander.CommanderProbe). */
     @Override
     public Map<String, Console.Command> findcmds() {
         Map<String, Console.Command> cmds = new TreeMap<>(super.findcmds());
         cmds.put("squad", (cons, args) -> nurgling.sessions.squad.SquadProbe.run(this, args));
+        cmds.put("commander", (cons, args) -> nurgling.sessions.commander.CommanderProbe.run(this, args));
         return cmds;
     }
 
