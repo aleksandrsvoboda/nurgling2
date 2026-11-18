@@ -187,6 +187,7 @@ public class NConfig
         showBeehiveRadius,
         showTroughRadius,
         showMoundBedRadius,
+        showMineSupportRadius,
         showDamageShields,
         disableTileSmoothing,
         disableTileTransitions,
@@ -638,6 +639,7 @@ public class NConfig
         conf.put(Key.showBeehiveRadius, false);
         conf.put(Key.showTroughRadius, false);
         conf.put(Key.showMoundBedRadius, false);
+        conf.put(Key.showMineSupportRadius, false);
 
         // Damage shields display
         conf.put(Key.showDamageShields, true);
