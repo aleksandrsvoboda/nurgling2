@@ -82,13 +82,14 @@ public class SessionContext {
         }
     }, null, false);
 
-    private static int sessionCounter = 0;
+    /* Atomic: background logins create sessions on several threads at once. */
+    private static final java.util.concurrent.atomic.AtomicInteger sessionCounter = new java.util.concurrent.atomic.AtomicInteger();
 
     /**
      * Create a new session context.
      */
     public SessionContext() {
-        this.sessionId = "session-" + (++sessionCounter);
+        this.sessionId = "session-" + sessionCounter.incrementAndGet();
     }
 
     /**
@@ -274,7 +275,25 @@ public class SessionContext {
             session.injectMessage(new DetachMessage());
         }
 
-        // Start headless tick thread for game logic (glob ticks, UI ticks)
+        startHeadlessTick();
+    }
+
+    /**
+     * Start a session that was never on screen (a background login) in headless mode. Unlike
+     * {@link #demoteToHeadless} there is no on-screen message loop to detach and nothing drawn to
+     * clear; the caller runs the background message loop itself.
+     */
+    public void startHeadless() {
+        if (headless) {
+            return;
+        }
+        headless = true;
+        keepMeshes(false);
+        startHeadlessTick();
+    }
+
+    /** Start the headless tick thread for game logic (glob ticks, UI ticks). */
+    private void startHeadlessTick() {
         headlessThread = new Thread(() -> {
             try {
                 runHeadlessLoop();

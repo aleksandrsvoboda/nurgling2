@@ -71,6 +71,13 @@ public class SessionManager {
     /** Characters selected for squad orders; declared after {@code listeners}, which it registers in. */
     private final nurgling.sessions.squad.Squad squad = new nurgling.sessions.squad.Squad(this);
 
+    /** "Log in to several": its groups and the run in progress. */
+    private final nurgling.sessions.multilogin.MultiLogin multiLogin = new nurgling.sessions.multilogin.MultiLogin();
+
+    public nurgling.sessions.multilogin.MultiLogin multiLogin() {
+        return multiLogin;
+    }
+
     /** The squad: which sessions are selected and what they were last told to do. */
     public nurgling.sessions.squad.Squad squad() {
         return squad;
@@ -182,6 +189,21 @@ public class SessionManager {
         // Notify listeners (SessionUIController will add tab bar)
         notifySessionAdded(ctx);
 
+        return ctx;
+    }
+
+    /**
+     * Add a session that was logged in in the background ({@link BackgroundLogin}). It never becomes
+     * the active session here, even when it is the only one: the window keeps showing whatever it
+     * shows (a login screen) until the session is switched to. The caller starts its headless loops.
+     */
+    public SessionContext addBackgroundSession(Session session, NUI ui) {
+        SessionContext ctx = new SessionContext(session, ui);
+        synchronized (sessionsLock) {
+            sessions.put(ctx.sessionId, ctx);
+            indexSessions();
+        }
+        notifySessionAdded(ctx);
         return ctx;
     }
 
@@ -366,6 +388,10 @@ public class SessionManager {
         // If new session is headless, mark it for Bootstrap to pick up
         if (newActive.isHeadless()) {
             pendingSwitchTo = newActive;
+            /* With no session on screen there is nothing to detach, so nothing would start a
+             * Bootstrap to pick the switch up: wake the login screen that is waiting instead. */
+            if (oldActive == null || oldActive == newActive)
+                wakeLoginScreen();
         }
 
         // Demote old active to headless (this triggers Bootstrap via requestDetach)
@@ -378,6 +404,15 @@ public class SessionManager {
 
         // Notify listeners
         notifyActiveSessionChanged(oldActive, newActive);
+    }
+
+    /** If the window is showing a login screen, makes it pick up the pending switch. */
+    private void wakeLoginScreen() {
+        SessionUIController ctrl = SessionUIController.getInstance();
+        UILoop loop = (ctrl != null) ? ctrl.getLoop() : null;
+        UI cur = (loop != null) ? loop.ui : null;
+        if (cur != null && cur.rcvr instanceof Bootstrap)
+            ((Bootstrap) cur.rcvr).wakeForSwitch();
     }
 
     /**

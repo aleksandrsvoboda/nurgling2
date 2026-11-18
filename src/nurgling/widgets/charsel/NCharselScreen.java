@@ -431,11 +431,44 @@ public class NCharselScreen extends Widget {
                 }
             }
         }
+        rememberCharacters(dt);
         if (avatar instanceof ProxyFrame)
             ((ProxyFrame<?>) avatar).color = null;
         /* Each character wears its own plague pattern on the big avatar too. */
         if (avaview instanceof NAvaview)
             ((NAvaview) avaview).plague(selectedName());
+    }
+
+    /* The character list fills in over a few messages; once it has stopped growing for a second it
+     * is remembered for the account, so the login screen can offer its characters before logging in. */
+    private int knownCount = -1;
+    private double knownSteady = 0;
+    private boolean knownSaved = false;
+
+    private void rememberCharacters(double dt) {
+        if (knownSaved || (list == null))
+            return;
+        List<String> names = characterNames(list);
+        if (names.size() != knownCount) {
+            knownCount = names.size();
+            knownSteady = 0;
+            return;
+        }
+        knownSteady += dt;
+        if ((knownCount > 0) && (knownSteady >= 1.0)) {
+            knownSaved = true;
+            NCharTags.setKnown(NCharTags.account(ui), names);
+        }
+    }
+
+    /** The names on a character list, in its order. */
+    public static List<String> characterNames(Charlist list) {
+        List<String> ret = new ArrayList<>();
+        synchronized (list.chars) {
+            for (Charlist.Char c : list.chars)
+                ret.add(c.name);
+        }
+        return (ret);
     }
 
     private String selectedName() {

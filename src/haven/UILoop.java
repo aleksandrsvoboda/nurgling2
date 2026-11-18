@@ -98,6 +98,13 @@ public abstract class UILoop implements Console.Directory {
     public UILifecycleListener getUILifecycleListener() { return lifecycleListener; }
 
     private Audio.Root audio = null;
+
+    /* nurgling: the window's audio root, shared with UIs built off this loop (background logins).
+     * Null until the first UI is made. */
+    public Audio.Root audioroot() {
+	return(audio);
+    }
+
     public UI newui(UI.Runner fun) {
 	if(audio == null)
 	    audio = new Audio.Root(audiosink());

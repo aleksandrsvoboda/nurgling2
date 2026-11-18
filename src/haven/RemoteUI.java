@@ -59,7 +59,7 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 	sess.queuemsg(msg);
     }
 
-    private void sendua(UI ui) {
+    protected void sendua(UI ui) {
 	try {
 	    sendua("conf.id", Config.confid);
 	    sendua("java.vm", Utils.getprop("java.vm.name", ""));

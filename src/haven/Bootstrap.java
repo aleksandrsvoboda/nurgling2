@@ -176,6 +176,46 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     }
 
     /**
+     * The game server addresses to try for a login, best first: the configured game server if one
+     * is set, else the hosts the auth server named, else the default game server.
+     */
+    public static List<InetSocketAddress> gameaddrs(NamedSocketAddress server, NamedSocketAddress defserv, List<NamedSocketAddress> hosts, SocketAddress authaddr) throws UnknownHostException {
+	List<InetSocketAddress> addrs = new ArrayList<>();
+	NamedSocketAddress ea = gameserv.get();
+	if(ea != null) {
+	    for(InetAddress addr : InetAddress.getAllByName(ea.host))
+		addrs.add(new InetSocketAddress(addr, ea.port));
+	    if(addrs.isEmpty())
+		throw(new UnknownHostException(ea.host));
+	} else {
+	    if(hosts.isEmpty()) {
+		for(InetAddress addr : InetAddress.getAllByName(defserv.host))
+		    addrs.add(new InetSocketAddress(addr, defserv.port));
+		if(addrs.isEmpty())
+		    throw(new UnknownHostException(defserv.host));
+	    } else {
+		for(NamedSocketAddress addr : hosts) {
+		    for(InetAddress host : InetAddress.getAllByName(addr.host))
+			addrs.add(new InetSocketAddress(host, addr.port));
+		}
+		if(addrs.isEmpty())
+		    throw(new UnknownHostException(server.host));
+	    }
+	}
+	preferhost(addrs, authaddr);
+	return(addrs);
+    }
+
+    /**
+     * Wakes a login screen that is waiting for credentials so it runs {@link #preRun} again: a
+     * session switch made while the login screen is up (no session on screen to detach) is
+     * otherwise never picked up.
+     */
+    public void wakeForSwitch() {
+	rcvmsg(-1, "nurgling-switch");
+    }
+
+    /**
      * Hook called before normal bootstrap.
      * @return non-null Runner to skip bootstrap, null to continue
      */
@@ -274,6 +314,11 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 			    savepw = (Boolean)msg.args[1];
 			    break;
 			}
+		    } else if((msg.id == -1) && "nurgling-switch".equals(msg.name)) {
+			/* Nurgling: a session was picked while this screen waited; go straight to it. */
+			UI.Runner sw = preRun(ui);
+			if(sw != null)
+			    return(sw);
 		    }
 		}
 		ui.uimsg(1, "prg", "Authenticating...");
@@ -305,29 +350,7 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 	    }
 	    ui.uimsg(1, "prg", "Connecting...");
 	    try {
-		List<InetSocketAddress> addrs = new ArrayList<>();
-		NamedSocketAddress ea = gameserv.get();
-		if(ea != null) {
-		    for(InetAddress addr : InetAddress.getAllByName(ea.host))
-			addrs.add(new InetSocketAddress(addr, ea.port));
-		    if(addrs.isEmpty())
-			throw(new UnknownHostException(ea.host));
-		} else {
-		    if(hosts.isEmpty()) {
-			for(InetAddress addr : InetAddress.getAllByName(defserv.host))
-			    addrs.add(new InetSocketAddress(addr, defserv.port));
-			if(addrs.isEmpty())
-			    throw(new UnknownHostException(ea.host));
-		    } else {
-			for(NamedSocketAddress addr : hosts) {
-			    for(InetAddress host : InetAddress.getAllByName(addr.host))
-				addrs.add(new InetSocketAddress(host, addr.port));
-			}
-			if(addrs.isEmpty())
-			    throw(new UnknownHostException(server.host));
-		    }
-		}
-		preferhost(addrs, authaddr);
+		List<InetSocketAddress> addrs = gameaddrs(server, defserv, hosts, authaddr);
 		connect: {
 		    for(int i = 0; i < addrs.size(); i++) {
 			if(i > 0)
