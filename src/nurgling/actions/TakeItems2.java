@@ -138,6 +138,17 @@ public class TakeItems2 implements Action
         this.qualityType = QualityType.High;
     }
 
+    /* For takeAny(NAlias, NGameUI) from one zone subtype, choosing which copies a container gives up first
+     * (Low: the worst first, for buildings whose quality does not matter). */
+    public TakeItems2(NContext context, int count, Specialisation.SpecName specName, String specSubtype, QualityType qualityType)
+    {
+        this.cnt = context;
+        this.count = count;
+        this.specName = specName;
+        this.specSubtype = specSubtype;
+        this.qualityType = qualityType;
+    }
+
     /* For takeAny(NAlias, NGameUI) - no single exact item name is known up front. */
     public TakeItems2(NContext context, int count, Specialisation.SpecName specName, QualityType qualityType)
     {

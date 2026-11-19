@@ -24,5 +24,8 @@ public final class CommanderHud {
             w.target_c = new Coord((gui.sz.x - w.sz.x) / 2, gui.sz.y - w.sz.y - UI.scale(40)));
         HudPanel.install(gui, new AlertFeed(), AlertFeed.DRAG_NAME, w ->
             w.target_c = new Coord(UI.scale(70), UI.scale(280)));
+        /* The colony: home, who is at home, and the plan for a goal. Left side, below the alerts. */
+        HudPanel.install(gui, new ColonyPanel(), ColonyPanel.DRAG_NAME, w ->
+            w.target_c = new Coord(UI.scale(70), UI.scale(440)));
     }
 }

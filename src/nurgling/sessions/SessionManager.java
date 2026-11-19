@@ -77,6 +77,13 @@ public class SessionManager {
         return commander;
     }
 
+    /** The colony: home, who takes part, and what a goal needs. */
+    private final nurgling.colony.Colony colony = new nurgling.colony.Colony();
+
+    public nurgling.colony.Colony colony() {
+        return colony;
+    }
+
     /** "Log in to several": its groups and the run in progress. */
     private final nurgling.sessions.multilogin.MultiLogin multiLogin = new nurgling.sessions.multilogin.MultiLogin();
 

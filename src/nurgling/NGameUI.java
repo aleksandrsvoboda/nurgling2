@@ -1389,12 +1389,13 @@ public class NGameUI extends GameUI
         }
     }
 
-    /** Adds {@code :squad probe} (nurgling.sessions.squad.SquadProbe) and {@code :commander} (nurgling.sessions.commander.CommanderProbe). */
+    /** Adds {@code :squad probe} (nurgling.sessions.squad.SquadProbe), {@code :commander} (nurgling.sessions.commander.CommanderProbe) and {@code :colony} (nurgling.colony.scout.ColonyScout). */
     @Override
     public Map<String, Console.Command> findcmds() {
         Map<String, Console.Command> cmds = new TreeMap<>(super.findcmds());
         cmds.put("squad", (cons, args) -> nurgling.sessions.squad.SquadProbe.run(this, args));
         cmds.put("commander", (cons, args) -> nurgling.sessions.commander.CommanderProbe.run(this, args));
+        cmds.put("colony", (cons, args) -> nurgling.colony.scout.ColonyScout.run(this, args));
         return cmds;
     }
 

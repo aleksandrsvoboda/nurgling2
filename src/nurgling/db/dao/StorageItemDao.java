@@ -155,6 +155,29 @@ public class StorageItemDao {
     }
 
     /**
+     * Every item row (stockpile rows too, not barrels or cisterns) whose container stands on one of the given grids,
+     * with the container's location.
+     */
+    public List<LocatedItem> loadLocatedOnGrids(DatabaseAdapter adapter, java.util.Collection<Long> grids) throws SQLException {
+        List<LocatedItem> items = new ArrayList<>();
+        if (grids.isEmpty())
+            return items;
+        String marks = String.join(", ", java.util.Collections.nCopies(grids.size(), "?"));
+        try (ResultSet rs = adapter.executeQuery("SELECT si.name, si.coordinates, si.container, c.grid_id, c.coord " +
+                                                "FROM storageitems si JOIN containers c ON c.hash = si.container " +
+                                                "WHERE c.grid_id IN (" + marks + ")", grids.toArray())) {
+            while (rs.next()) {
+                String coordinates = rs.getString("coordinates");
+                if (coordinates != null && coordinates.startsWith(nurgling.widgets.BulkStorageWindowExtension.BULK_TAG))
+                    continue;
+                items.add(new LocatedItem(rs.getString("name"), rs.getString("container"),
+                    rs.getLong("grid_id"), rs.getString("coord")));
+            }
+        }
+        return items;
+    }
+
+    /**
      * Load storage items by container
      */
     public List<StorageItemData> loadStorageItemsByContainer(DatabaseAdapter adapter, String containerHash) throws SQLException {
