@@ -67,6 +67,10 @@ public class StorageItemService {
     /**
      * Load located rows named exactly one of names, synchronously
      */
+    public List<StorageItemDao.LocatedItem> loadLocatedOnGrids(java.util.Collection<Long> grids) throws SQLException {
+        return databaseManager.executeOperation(adapter -> storageItemDao.loadLocatedOnGrids(adapter, grids));
+    }
+
     public List<StorageItemDao.LocatedItem> loadByExactNames(java.util.Collection<String> names) throws SQLException {
         return databaseManager.executeOperation(adapter -> storageItemDao.loadByExactNames(adapter, names));
     }

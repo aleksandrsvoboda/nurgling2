@@ -60,6 +60,9 @@ public class SessionContext {
     /** What this session last published about its character; the viewpoint only reads it. */
     public volatile nurgling.sessions.squad.MemberReport squadReport;
 
+    /** What this session last published for the colony (skills, LP, tools, materials); see nurgling.colony.ColonyReporter. */
+    public volatile nurgling.colony.ColonistReport colonyReport;
+
     /** Squad executor state, touched only by this session's tick and squad thread. */
     public final nurgling.sessions.squad.SquadExecutor.State squadState = new nurgling.sessions.squad.SquadExecutor.State();
 
