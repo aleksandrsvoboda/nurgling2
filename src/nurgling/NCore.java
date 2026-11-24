@@ -368,8 +368,6 @@ public class NCore extends Widget
         nurgling.sessions.squad.SquadExecutor.tick((NUI) ui);
         /* The commander camera's warm-up of this session, when it is in the background. */
         nurgling.sessions.commander.CommanderTick.tick((NUI) ui);
-        /* What this character can do for the colony, published for the Colony panel. */
-        nurgling.colony.ColonyReporter.tick((NUI) ui);
     }
 
     private void tickMeasured(double dt) {

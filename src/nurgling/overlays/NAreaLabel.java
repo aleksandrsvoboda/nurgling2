@@ -93,7 +93,10 @@ public class NAreaLabel extends Sprite implements RenderTree.Node, PView.Render2
             if (specs.size() > 1) {
 
                 for (int i = 1; i < specs.size(); i++) {
-                    first = ItemInfo.catimgsh(UI.scale(5), first, new Coord(iconSize, iconSize), Specialisation.findSpecialisation(specs.get(i)).image);
+                    /* A saved area can name a specialisation this version no longer has: skip its icon. */
+                    Specialisation.SpecialisationItem item = Specialisation.findSpecialisation(specs.get(i));
+                    if (item != null)
+                        first = ItemInfo.catimgsh(UI.scale(5), first, new Coord(iconSize, iconSize), item.image);
                 }
             }
             img = ItemInfo.catimgsh(UI.scale(5), img, first);

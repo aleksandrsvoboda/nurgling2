@@ -103,9 +103,17 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		    button = new PagButton(this);
 		else
 		    button = f.make(this);
-			if (NUtils.getGameUI()!=null && res.name.contains("paginae/act/itemcomb")) {
-				((NInventory) NUtils.getGameUI().maininv).pagBundle = button;
-				((NInventory) NUtils.getGameUI().maininv).bundle.a = ((Toggle)button).a;
+			if (res.name.contains("paginae/act/itemcomb")) {
+				/* The stacking toggle belongs to this menu's own session: in multi-session, NUtils.getGameUI() is
+				 * whatever session the calling thread is on (or the one on screen), which may be another
+				 * character's, whose stacking state this would overwrite. */
+				GameUI own = (scm.ui != null) ? scm.ui.gui : null;
+				if (own == null)
+				    own = NUtils.getGameUI();
+				if (own != null && own.maininv instanceof NInventory) {
+				    ((NInventory) own.maininv).pagBundle = button;
+				    ((NInventory) own.maininv).bundle.a = ((Toggle)button).a;
+				}
 			}
 	    }
 	    return(button);

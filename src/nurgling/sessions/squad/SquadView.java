@@ -593,9 +593,6 @@ public class SquadView {
         if (vp == null)
             return;
         drawOrder(g, sq, vp);
-        /* The colony's home and its reach, under the characters' tags. */
-        if (sq.commander() && nurgling.sessions.commander.ColonyMarks.shown())
-            nurgling.sessions.commander.ColonyMarks.world(g, vp, map.sz, this::screen);
         /* In Commander mode every character gets its name and a health bar, RTS style; arrows point to the selected
          * ones out of view. */
         for (SessionContext ctx : sq.commander() ? sq.candidates() : sq.members()) {
@@ -806,8 +803,6 @@ public class SquadView {
             g.chcolor(squad().isSelected(ctx) ? ORANGE : TEAL);
             g.frect(c.sub(s, s), new Coord(2 * s + 1, 2 * s + 1));
         }
-        if (cm && nurgling.sessions.commander.ColonyMarks.shown())
-            nurgling.sessions.commander.ColonyMarks.minimap(mm, g, vp);
         if (cm && vp.map instanceof NMapView)
             drawCameraFrame(mm, g, (NMapView) vp.map);
         g.chcolor();
