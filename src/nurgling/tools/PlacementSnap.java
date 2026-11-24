@@ -47,13 +47,12 @@ public class PlacementSnap {
         if(pbox == null)
             return(null);
 
-        // Ghost footprint as an axis-aligned box at the current rotation,
-        // centred on the cursor. Half-extents are symmetric about mc.
-        NHitBoxD pd = new NHitBoxD(pbox.begin, pbox.end, mc, plob.a);
-        Coord2d pul = pd.getCircumscribedUL();
-        Coord2d pbr = pd.getCircumscribedBR();
-        double hw = (pbr.x - pul.x) / 2.0;
-        double hh = (pbr.y - pul.y) / 2.0;
+        // Ghost footprint as an axis-aligned box at the current rotation, kept
+        // as offsets from the ghost's origin. The origin is what gets placed, and
+        // it need not be the box centre: the smelter runs y -20..11.
+        NHitBoxD pd = new NHitBoxD(pbox.begin, pbox.end, Coord2d.z, plob.a);
+        Coord2d lo = pd.getCircumscribedUL();
+        Coord2d hi = pd.getCircumscribedBR();
 
         MapView mv = plob.mv();
         Gob player = mv.player();
@@ -90,16 +89,15 @@ public class PlacementSnap {
 
                 // X snapping only makes sense when the ghost overlaps the
                 // neighbour's Y span (i.e. they are side-by-side), within CAPTURE.
-                boolean yAdjacent = (mc.y + hh > nul.y - CAPTURE) && (mc.y - hh < nbr.y + CAPTURE);
+                boolean yAdjacent = (mc.y + hi.y > nul.y - CAPTURE) && (mc.y + lo.y < nbr.y + CAPTURE);
                 if(yAdjacent) {
-                    // ghost-right→neighbour-left, ghost-left→neighbour-right, align-left, align-right
-                    double[] r = best(mc.x, nul.x - hw, nbr.x + hw, nul.x + hw, nbr.x - hw, bestDX);
+                    double[] r = snapAxis(mc.x, lo.x, hi.x, nul.x, nbr.x, bestDX);
                     if(r != null) { bestDX = r[0]; snapX = r[1]; }
                 }
 
-                boolean xAdjacent = (mc.x + hw > nul.x - CAPTURE) && (mc.x - hw < nbr.x + CAPTURE);
+                boolean xAdjacent = (mc.x + hi.x > nul.x - CAPTURE) && (mc.x + lo.x < nbr.x + CAPTURE);
                 if(xAdjacent) {
-                    double[] r = best(mc.y, nul.y - hh, nbr.y + hh, nul.y + hh, nbr.y - hh, bestDY);
+                    double[] r = snapAxis(mc.y, lo.y, hi.y, nul.y, nbr.y, bestDY);
                     if(r != null) { bestDY = r[0]; snapY = r[1]; }
                 }
             }
@@ -112,14 +110,17 @@ public class PlacementSnap {
     }
 
     /**
-     * From four candidate coordinates, return {currentBest distance, winning
-     * coordinate} if any beats {@code curBest} (the closest-so-far distance from
-     * {@code from}); otherwise {@code null}.
+     * Snap one axis. The ghost origin sits at {@code from} and its footprint
+     * spans {@code from+lo .. from+hi}; the neighbour spans {@code nlo .. nhi}.
+     * Candidates put the ghost flush on either side of the neighbour or aligned
+     * with either of its edges. Returns {distance, origin coordinate} for the
+     * closest candidate nearer than {@code curBest}, otherwise {@code null}.
      */
-    private static double[] best(double from, double c1, double c2, double c3, double c4, double curBest) {
+    static double[] snapAxis(double from, double lo, double hi, double nlo, double nhi, double curBest) {
         double bd = curBest;
         double bc = Double.NaN;
-        for(double c : new double[]{c1, c2, c3, c4}) {
+        // ghost-high-edge→neighbour-low, ghost-low-edge→neighbour-high, align-low, align-high
+        for(double c : new double[]{nlo - hi, nhi - lo, nlo - lo, nhi - hi}) {
             double d = Math.abs(c - from);
             if(d < bd) { bd = d; bc = c; }
         }
