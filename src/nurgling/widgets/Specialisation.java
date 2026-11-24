@@ -138,9 +138,6 @@ public class Specialisation extends Window
         soilDump,
         paving,
         trees,
-        /* Where the colony builds its Wilderness Beacons; each spawned colonist's Hearth Fire stays where its beacon
-         * stood, so they gather here too (nurgling.colony.actions.BuildBeacon). */
-        beacons,
         /* Per-burner fuel zones. The material stays in the subtype; see FuelZones, which is
          * the table these are registered and resolved from. Plain "fuel" above remains the
          * shared fallback for any burner without its own zone. */
@@ -261,9 +258,6 @@ public class Specialisation extends Window
 
         // Trees and bushes to pick leaves from
         specialisation.add(new SpecialisationItem(SpecName.trees.toString(),"Trees",Resource.loadsimg("nurgling/categories/trees")));
-
-        // Colony: Wilderness Beacons are built here, so new colonists and their Hearth Fires stay together
-        specialisation.add(new SpecialisationItem(SpecName.beacons.toString(),"Beacons (new colonists)",Resource.loadsimg("nurgling/categories/fire_place")));
 
         // Bee skep area
         specialisation.add(new SpecialisationItem(SpecName.beeSkep.toString(),"Bee Skep",Resource.loadsimg("nurgling/categories/bee")));
