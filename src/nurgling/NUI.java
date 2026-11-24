@@ -311,16 +311,19 @@ public class NUI extends UI
                         if (lastInspectCoord == null || shouldInspect) {
                             // Check which inspect mode to use
                             boolean debugMode = core.debug;
+                            /* c is in root coordinates; the hit test wants map-local ones (the map
+                             * starts off screen when drawn through the frame bridge). */
+                            Coord mc = c.sub(mapView.rootpos());
 
                             if (debugMode) {
                                 // Debug mode takes priority - show full info
-                                mapView.inspect(c);
+                                mapView.inspect(mc);
                             } else {
                                 // Check simpleInspect only if debug is off
                                 boolean simpleInspect = (Boolean) NConfig.get(NConfig.Key.simpleInspect);
                                 if (simpleInspect) {
                                     // Simple inspect mode - show only gob and tile
-                                    mapView.inspectSimple(c);
+                                    mapView.inspectSimple(mc);
                                 }
                             }
 
