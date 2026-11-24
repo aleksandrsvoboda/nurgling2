@@ -103,6 +103,10 @@ public class CraftPreset {
         private String preferredIngredient;
         private boolean isOptional;
         private boolean isIgnored;
+        /** Kinds picked as a mix for a category input, in order; empty for a single pick. */
+        private List<String> mix = new ArrayList<>();
+        /** "Any" member of a category input: whatever the areas hold. */
+        private boolean isAny;
 
         public InputSpec() {}
 
@@ -114,6 +118,13 @@ public class CraftPreset {
             this.preferredIngredient = obj.optString("preferredIngredient", null);
             this.isOptional = obj.optBoolean("isOptional", false);
             this.isIgnored = obj.optBoolean("isIgnored", false);
+            this.isAny = obj.optBoolean("isAny", false);
+            JSONArray jmix = obj.optJSONArray("mix");
+            if (jmix != null) {
+                for (int i = 0; i < jmix.length(); i++) {
+                    mix.add(jmix.getString(i));
+                }
+            }
         }
 
         public JSONObject toJson() {
@@ -127,6 +138,12 @@ public class CraftPreset {
             }
             obj.put("isOptional", isOptional);
             obj.put("isIgnored", isIgnored);
+            if (!mix.isEmpty()) {
+                obj.put("mix", new JSONArray(mix));
+            }
+            if (isAny) {
+                obj.put("isAny", true);
+            }
             return obj;
         }
 
@@ -151,6 +168,12 @@ public class CraftPreset {
 
         public boolean isIgnored() { return isIgnored; }
         public void setIgnored(boolean ignored) { isIgnored = ignored; }
+
+        public List<String> getMix() { return mix; }
+        public void setMix(List<String> mix) { this.mix = new ArrayList<>(mix); }
+
+        public boolean isAny() { return isAny; }
+        public void setAny(boolean any) { isAny = any; }
     }
 
     /**

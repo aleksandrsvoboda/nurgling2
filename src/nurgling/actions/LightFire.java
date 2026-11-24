@@ -11,6 +11,7 @@ import nurgling.widgets.NMakewindow;
 import nurgling.widgets.Specialisation;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,11 +49,14 @@ public class LightFire implements Action {
         // Map of spec index to ingredient info (name, isIgnored)
         Map<Integer, IngredientInfo> inputIngredients = new HashMap<>();
         Map<Integer, IngredientInfo> outputIngredients = new HashMap<>();
+        // Spec index -> slot-by-slot picks (see NMakewindow.Spec.mix)
+        Map<Integer, List<NMakewindow.Ingredient>> inputMixes = new HashMap<>();
         
         static class IngredientInfo {
             String name;
             boolean isIgnored;
             java.awt.image.BufferedImage img;
+            String anyOf;
             
             IngredientInfo(String name, boolean isIgnored, java.awt.image.BufferedImage img) {
                 this.name = name;
@@ -105,9 +109,14 @@ public class LightFire implements Action {
         for (int i = 0; i < mw.inputs.size(); i++) {
             NMakewindow.Spec spec = mw.inputs.get(i);
             if (spec.ing != null) {
-                savedState.inputIngredients.put(i, new CraftState.IngredientInfo(
+                CraftState.IngredientInfo info = new CraftState.IngredientInfo(
                     spec.ing.name, spec.ing.isIgnored, spec.ing.img
-                ));
+                );
+                info.anyOf = spec.ing.anyOf;
+                savedState.inputIngredients.put(i, info);
+            }
+            if (spec.mixed()) {
+                savedState.inputMixes.put(i, spec.mix);
             }
         }
         
@@ -177,6 +186,8 @@ public class LightFire implements Action {
             if (idx < newMw.inputs.size()) {
                 NMakewindow.Spec spec = newMw.inputs.get(idx);
                 spec.ing = newMw.new Ingredient(info.img, info.name, info.isIgnored);
+                spec.ing.anyOf = info.anyOf;
+                spec.mix = savedState.inputMixes.get(idx);
             }
         }
         

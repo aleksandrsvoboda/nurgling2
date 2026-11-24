@@ -77,6 +77,20 @@ public class Craft implements Action {
     boolean prefilled = false;
 
     /**
+     * Set when an input is a mix of kinds (NMakewindow.Spec.mix). The server chooses which held items
+     * go into a craft, so a batch of several crafts' worth could put three grasshoppers into one Bug
+     * Collection: with a mix every craft is fetched and made on its own.
+     */
+    private boolean oneAtATime = false;
+    /** Set when an input runs short for another craft: what ran out, else null. */
+    private String ranOut = null;
+    /**
+     * For each "Any" category input (NMakewindow.Ingredient.anyOf), the members some area holds,
+     * worked out once per run.
+     */
+    private final Map<String, List<String>> anyKinds = new HashMap<>();
+
+    /**
      * Original recipe identity captured before PrepareWorkStation runs. Lighting a
      * cold station (LightFire) opens the "Light fire" recipe in the craft window and
      * may leave it open if its own restore fails. We use this to re-select the
@@ -88,15 +102,18 @@ public class Craft implements Action {
     private String savedCraftCount = null;
     private final Map<Integer, IngredientSel> savedInputIng = new HashMap<>();
     private final Map<Integer, IngredientSel> savedOutputIng = new HashMap<>();
+    private final Map<Integer, List<NMakewindow.Ingredient>> savedInputMix = new HashMap<>();
 
     private static class IngredientSel {
         final java.awt.image.BufferedImage img;
         final String name;
         final boolean isIgnored;
-        IngredientSel(java.awt.image.BufferedImage img, String name, boolean isIgnored) {
-            this.img = img;
-            this.name = name;
-            this.isIgnored = isIgnored;
+        final String anyOf;
+        IngredientSel(NMakewindow.Ingredient ing) {
+            this.img = ing.img;
+            this.name = ing.name;
+            this.isIgnored = ing.isIgnored;
+            this.anyOf = ing.anyOf;
         }
     }
 
@@ -125,6 +142,9 @@ public class Craft implements Action {
     private Results mwnd_run(NGameUI gui) throws InterruptedException {
         NContext ncontext = new NContext(gui);
         int size = 0;
+        oneAtATime = false;
+        ranOut = null;
+        anyKinds.clear();
         // Pick category ingredients first, so the storage lookup below sees every input's name
         for (NMakewindow.Spec s : mwnd.inputs) {
             if (s.categories && s.ing == null) {
@@ -137,6 +157,35 @@ public class Craft implements Action {
         for (NMakewindow.Spec s : mwnd.inputs) {
             // Skip ignored optional ingredients
             if (s.ing != null && s.ing.isIgnored) {
+                continue;
+            }
+            if (s.mixed()) {
+                List<String> kinds = new ArrayList<>();
+                for (NMakewindow.Ingredient ing : s.kinds()) {
+                    kinds.add(ing.name);
+                    if (!fromStorage.contains(ing.name)) {
+                        ncontext.addInItem(ing.name, ing.img);
+                    }
+                }
+                size += s.count;
+                oneAtATime = true;
+                System.out.println("[Craft] " + s.name + " slots " + kinds + ", one craft at a time");
+                continue;
+            }
+            if (s.ing != null && s.ing.anyOf != null) {
+                List<String> kinds = new ArrayList<>();
+                for (String member : categoryMembers(s.name)) {
+                    if ((NContext.findIn(member) != null || NContext.findInGlobal(member) != null) && !ncontext.isInBarrel(member)) {
+                        kinds.add(member);
+                        ncontext.addInItem(member, null);
+                    }
+                }
+                if (kinds.isEmpty()) {
+                    return Results.ERROR("No area holds any " + s.name);
+                }
+                anyKinds.put(s.name, kinds);
+                size += s.count;
+                System.out.println("[Craft] Any " + s.name + ": " + kinds.size() + " kinds have an area");
                 continue;
             }
 
@@ -283,18 +332,72 @@ public class Craft implements Action {
         }
 
 
+        if (oneAtATime) {
+            for_craft = Math.min(for_craft, 1);
+        }
+
         if (for_craft <= 0) {
             return Results.ERROR("Not enough inventory space");
         }
-        
+
+        // Auto-select ingredient from category if not already selected
         for (NMakewindow.Spec s : mwnd.inputs) {
-            // Auto-select ingredient from category if not already selected
             if (s.categories && s.ing == null) {
                 selectIngredientFromCategory(s);
             }
-
+        }
+        /* An item can feed two inputs: Horrible Knot asks for Stinging Nettle itself and for String,
+         * which Stinging Nettle may also be picked for. Plain inputs are fetched first; slot and Any
+         * inputs after them, fetching on top of what the plain ones hold for their own use. */
+        Map<String, Integer> plainDemand = new HashMap<>();
+        List<NMakewindow.Spec> order = new ArrayList<>();
+        List<NMakewindow.Spec> shared = new ArrayList<>();
+        for (NMakewindow.Spec s : mwnd.inputs) {
+            if (s.mixed() || (s.ing != null && s.ing.anyOf != null)) {
+                shared.add(s);
+                continue;
+            }
+            order.add(s);
+            String name = inputName(s);
+            if (name != null && !ncontext.isInBarrel(name)) {
+                plainDemand.merge(name, s.count * for_craft, Integer::sum);
+            }
+        }
+        order.addAll(shared);
+        
+        for (NMakewindow.Spec s : order) {
             // Skip ignored optional ingredients
             if (s.ing != null && s.ing.isIgnored) {
+                continue;
+            }
+
+            if (s.mixed()) {
+                if (!prefilled) {
+                    Results took = takeMix(ncontext, gui, s, plainDemand);
+                    if (!took.IsSuccess()) {
+                        Results end = endOnRunOut(gui, left);
+                        return (end != null) ? end : took;
+                    }
+                }
+                continue;
+            }
+
+            if (s.ing != null && s.ing.anyOf != null) {
+                if (!prefilled) {
+                    int want = s.count * for_craft;
+                    int have = takeAnyOf(ncontext, gui, s, want, plainDemand);
+                    if (have < want) {
+                        if (have >= s.count) {
+                            // Craft what was found; the next round finds none and ends the run
+                            for_craft = have / s.count;
+                            System.out.println("[Craft] Any " + s.name + ": found " + have + " of " + want + ", making " + for_craft);
+                        } else {
+                            ranOut = "Not enough " + s.name + " in the areas: have " + have + " of " + s.count;
+                            Results end = endOnRunOut(gui, left);
+                            return (end != null) ? end : Results.ERROR(ranOut);
+                        }
+                    }
+                }
                 continue;
             }
 
@@ -603,6 +706,23 @@ public class Craft implements Action {
                 
                 String itemName = s.ing == null ? s.name : s.ing.name;
                 int required = s.count;
+
+                if (s.mixed()) {
+                    int available = 0;
+                    for (NMakewindow.Ingredient ing : s.kinds()) {
+                        available += heldExact(gui, ing.name);
+                    }
+                    if (available < required) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (s.ing != null && s.ing.anyOf != null) {
+                    if (heldAny(gui, categoryMembers(s.name)) < required) {
+                        return false;
+                    }
+                    continue;
+                }
                 
                 if (ncontext.isInBarrel(itemName)) {
                     // Check barrel content
@@ -758,6 +878,195 @@ public class Craft implements Action {
         return Results.SUCCESS();
     }
 
+    /** After an input ran out: end the run normally once a craft was made, as a "Craft all" ends; else null. */
+    private Results endOnRunOut(NGameUI gui, AtomicInteger left) {
+        int made = count - left.get();
+        if (ranOut == null || made <= 0) {
+            return null;
+        }
+        gui.msg(ranOut + "; stopped after " + made + (made == 1 ? " craft" : " crafts"));
+        left.set(0);
+        return Results.SUCCESS();
+    }
+
+    /** Every item name a category input offers. */
+    private static Set<String> categoryMembers(String category) {
+        Set<String> ret = new LinkedHashSet<>();
+        ArrayList<org.json.JSONObject> options = CraftCategories.options(category);
+        if (options != null) {
+            for (org.json.JSONObject obj : options) {
+                ret.add(obj.optString("name"));
+            }
+        }
+        return ret;
+    }
+
+    /** Items in the inventory whose exact name is one of names. */
+    private static int heldAny(NGameUI gui, Set<String> names) throws InterruptedException {
+        int n = 0;
+        for (WItem item : gui.getInventory().getItems()) {
+            if (names.contains(((NGItem) item.item).name())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Bring the inventory up to target items of an "Any" category input: whatever members the areas
+     * hold, one area at a time, each container asked for every member in one visit. Members already
+     * carried count too, since the server uses them as well, except those a plain input of the recipe
+     * holds for itself (plainDemand). Returns how many are held for this input.
+     */
+    private int takeAnyOf(NContext ncontext, NGameUI gui, NMakewindow.Spec s, int wanted, Map<String, Integer> plainDemand) throws InterruptedException {
+        List<String> kinds = anyKinds.get(s.name);
+        Set<String> members = categoryMembers(s.name);
+        // Copies a plain input of the recipe holds for itself are not this input's
+        int reserved = 0;
+        for (String member : members) {
+            reserved += plainDemand.getOrDefault(member, 0);
+        }
+        int target = wanted + reserved;
+        Set<String> withArea = new HashSet<>(kinds);
+        Map<Integer, List<String>> byArea = new LinkedHashMap<>();
+        for (String kind : kinds) {
+            NArea area = NContext.findIn(kind);
+            if (area == null) {
+                area = NContext.findInGlobal(kind);
+            }
+            if (area != null) {
+                byArea.computeIfAbsent(area.id, k -> new ArrayList<>()).add(kind);
+            }
+        }
+        int have = heldAny(gui, members);
+        for (List<String> group : byArea.values()) {
+            if (have >= target) {
+                break;
+            }
+            // takeAny looks in the first name's area; any member found there is taken
+            List<String> keys = new ArrayList<>(group);
+            for (String kind : kinds) {
+                if (!keys.contains(kind)) {
+                    keys.add(kind);
+                }
+            }
+            // its count is absolute over the names it is given, which leave out members without an area
+            int count = heldAny(gui, withArea) + (target - have);
+            TakeItems2 take = new TakeItems2(ncontext, count, (Specialisation.SpecName) null, (NInventory.QualityType) null);
+            take.exactMatch = true;
+            take.takeAny(new NAlias(new ArrayList<>(keys), new ArrayList<>()), gui);
+            have = heldAny(gui, members);
+        }
+        return Math.max(have - reserved, 0);
+    }
+
+    /**
+     * Fetch one craft's worth of an input picked slot by slot: exactly what the slots name, so two
+     * Grasshopper slots and four others give two grasshoppers and one of each other bug. The server
+     * chooses which held items go into the craft, so nothing else it could use for this input may be
+     * held: other members of the category are put away first. When a kind runs short the partial set
+     * goes back and ranOut is set.
+     */
+    private Results takeMix(NContext ncontext, NGameUI gui, NMakewindow.Spec s, Map<String, Integer> plainDemand) throws InterruptedException {
+        Map<String, Integer> want = new LinkedHashMap<>();
+        for (NMakewindow.Ingredient ing : s.mix) {
+            want.merge(ing.name, 1, Integer::sum);
+        }
+        List<String> kinds = new ArrayList<>(want.keySet());
+        Results cleared = clearMixStrays(ncontext, gui, s, kinds);
+        if (!cleared.IsSuccess()) {
+            return cleared;
+        }
+        for (Map.Entry<String, Integer> e : want.entrySet()) {
+            // Copies a plain input of the recipe holds for itself are not this input's
+            int reserved = plainDemand.getOrDefault(e.getKey(), 0);
+            int got = fetchExact(ncontext, gui, e.getKey(), e.getValue() + reserved) - reserved;
+            if (got < e.getValue()) {
+                ranOut = "Not enough " + e.getKey() + " for another " + s.name + " set: have " + Math.max(got, 0) + " of " + e.getValue();
+                // Put the partial set back; a kind with no area to return to stays in the inventory
+                clearMixStrays(ncontext, gui, s, kinds);
+                return Results.ERROR(ranOut);
+            }
+        }
+        return Results.SUCCESS();
+    }
+
+    /**
+     * Bring the inventory up to want copies of exactly this name; returns how many are held. Asks for
+     * the shortfall only, since TakeItems2 takes its whole count from the first container whatever is
+     * already held, and asks again while that still brings more.
+     */
+    private int fetchExact(NContext ncontext, NGameUI gui, String name, int want) throws InterruptedException {
+        int have = heldExact(gui, name);
+        while (have < want) {
+            if (fromStorage.contains(name)) {
+                new TakeFromStorageIndex(storage, name, want).run(gui);
+            } else {
+                TakeItems2 take = new TakeItems2(ncontext, name, want - have);
+                take.exactMatch = true;
+                take.run(gui);
+            }
+            int now = heldExact(gui, name);
+            if (now <= have) {
+                break;
+            }
+            have = now;
+        }
+        return have;
+    }
+
+    /** Items in the inventory named exactly name: "Silkmoth" does not count a "Male Silkmoth". */
+    private static int heldExact(NGameUI gui, String name) throws InterruptedException {
+        int n = 0;
+        for (WItem item : gui.getInventory().getItems(new NAlias(name))) {
+            if (name.equals(((NGItem) item.item).name())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Before a mix is fetched, put away every held item the server could use for that input
+     * instead: any member of the category, and leftovers of the picked kinds. What another input of
+     * the recipe takes stays. Fails when a stray has no area to go to.
+     */
+    private Results clearMixStrays(NContext ncontext, NGameUI gui, NMakewindow.Spec s, List<String> kinds) throws InterruptedException {
+        Set<String> members = new HashSet<>(kinds);
+        ArrayList<org.json.JSONObject> options = CraftCategories.options(s.name);
+        if (options != null) {
+            for (org.json.JSONObject obj : options) {
+                members.add(obj.optString("name"));
+            }
+        }
+        for (NMakewindow.Spec other : mwnd.inputs) {
+            if (other != s && !other.mixed()) {
+                members.remove(inputName(other));
+            }
+        }
+        HashSet<String> targets = new HashSet<>();
+        for (WItem witem : gui.getInventory().getItems()) {
+            NGItem item = (NGItem) witem.item;
+            if (members.contains(item.name())) {
+                double q = item.quality != null ? item.quality : 1;
+                String route = ncontext.outKey(item, q);
+                if (ncontext.addOutItem(route, null, q)) {
+                    targets.add(route);
+                }
+            }
+        }
+        if (!targets.isEmpty()) {
+            new TransferItems2(ncontext, targets).run(gui);
+        }
+        for (WItem witem : gui.getInventory().getItems()) {
+            String name = ((NGItem) witem.item).name();
+            if (members.contains(name)) {
+                return Results.ERROR("The inventory holds " + name + " with no area to put it in; it could go into the craft instead of the picked " + s.name + " mix");
+            }
+        }
+        return Results.SUCCESS();
+    }
+
     private void selectIngredientFromCategory(NMakewindow.Spec spec) {
         if (!spec.categories || spec.ing != null) {
             return;
@@ -821,7 +1130,7 @@ public class Craft implements Action {
 
     private static String inputName(NMakewindow.Spec s) {
         if (s.ing != null) {
-            return s.ing.isIgnored ? null : s.ing.name;
+            return (s.ing.isIgnored || s.ing.anyOf != null) ? null : s.ing.name;
         }
         return s.categories ? null : s.name;
     }
@@ -833,9 +1142,18 @@ public class Craft implements Action {
     private void resolveStorageInputs() {
         Set<String> candidates = new LinkedHashSet<>();
         for (NMakewindow.Spec s : mwnd.inputs) {
-            String name = inputName(s);
-            if (name != null && NContext.findIn(name) == null && NContext.findInGlobal(name) == null) {
-                candidates.add(name);
+            List<String> names = new ArrayList<>();
+            if (s.mixed()) {
+                for (NMakewindow.Ingredient ing : s.kinds()) {
+                    names.add(ing.name);
+                }
+            } else if (inputName(s) != null) {
+                names.add(inputName(s));
+            }
+            for (String name : names) {
+                if (NContext.findIn(name) == null && NContext.findInGlobal(name) == null) {
+                    candidates.add(name);
+                }
             }
         }
         storage = TakeFromStorageIndex.Source.load(candidates, villageChunks());
@@ -894,6 +1212,7 @@ public class Craft implements Action {
         savedNoTransfer = false;
         savedInputIng.clear();
         savedOutputIng.clear();
+        savedInputMix.clear();
         if (mwnd == null) {
             return;
         }
@@ -904,13 +1223,16 @@ public class Craft implements Action {
         for (int i = 0; i < mwnd.inputs.size(); i++) {
             NMakewindow.Spec spec = mwnd.inputs.get(i);
             if (spec.ing != null) {
-                savedInputIng.put(i, new IngredientSel(spec.ing.img, spec.ing.name, spec.ing.isIgnored));
+                savedInputIng.put(i, new IngredientSel(spec.ing));
+            }
+            if (spec.mixed()) {
+                savedInputMix.put(i, spec.mix);
             }
         }
         for (int i = 0; i < mwnd.outputs.size(); i++) {
             NMakewindow.Spec spec = mwnd.outputs.get(i);
             if (spec.ing != null) {
-                savedOutputIng.put(i, new IngredientSel(spec.ing.img, spec.ing.name, spec.ing.isIgnored));
+                savedOutputIng.put(i, new IngredientSel(spec.ing));
             }
         }
     }
@@ -977,7 +1299,10 @@ public class Craft implements Action {
             for (Map.Entry<Integer, IngredientSel> e : savedInputIng.entrySet()) {
                 if (e.getKey() < mwnd.inputs.size()) {
                     IngredientSel sel = e.getValue();
-                    mwnd.inputs.get(e.getKey()).ing = mwnd.new Ingredient(sel.img, sel.name, sel.isIgnored);
+                    NMakewindow.Ingredient ing = mwnd.new Ingredient(sel.img, sel.name, sel.isIgnored);
+                    ing.anyOf = sel.anyOf;
+                    mwnd.inputs.get(e.getKey()).ing = ing;
+                    mwnd.inputs.get(e.getKey()).mix = savedInputMix.get(e.getKey());
                 }
             }
             for (Map.Entry<Integer, IngredientSel> e : savedOutputIng.entrySet()) {
@@ -1005,6 +1330,18 @@ public class Craft implements Action {
                 continue;
             }
             
+            // A mix may be of kinds that do not stack together: one cell per item
+            if (s.mixed()) {
+                totalSlots += s.count * numCrafts;
+                continue;
+            }
+            if (s.ing != null && s.ing.anyOf != null) {
+                List<String> kinds = anyKinds.get(s.name);
+                int stackSize = (kinds == null || kinds.isEmpty()) ? 1 : StackSupporter.getFullStackSize(kinds.get(0));
+                totalSlots += (s.count * numCrafts + stackSize - 1) / stackSize;
+                continue;
+            }
+
             String itemName = s.ing != null ? s.ing.name : s.name;
             
             // Skip items stored in barrels

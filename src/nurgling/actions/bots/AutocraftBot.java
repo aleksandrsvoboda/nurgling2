@@ -14,6 +14,8 @@ import nurgling.widgets.NMakewindow;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -166,6 +168,11 @@ public class AutocraftBot implements Action {
                             "Ignore ingredient",
                             true
                         );
+                    } else if (presetInput.isAny()) {
+                        spec.ing = mwnd.anyIngredient(spec, true);
+                        spec.mix = null;
+                    } else if (presetInput.getMix().size() > 1) {
+                        setMix(mwnd, spec, presetInput.getMix());
                     } else if (presetInput.getPreferredIngredient() != null) {
                         // Set preferred ingredient
                         setPreferredIngredient(mwnd, spec, presetInput.getPreferredIngredient());
@@ -174,6 +181,39 @@ public class AutocraftBot implements Action {
                 }
             }
         }
+    }
+
+    /**
+     * Sets saved slot-by-slot picks on a category spec. Like a single preferred ingredient, they are
+     * only used when an area holds every kind; otherwise Craft.java auto-selects as usual.
+     */
+    private void setMix(NMakewindow mwnd, NMakewindow.Spec spec, List<String> names) {
+        ArrayList<JSONObject> categoryItems = CraftCategories.options(spec.name);
+        if (categoryItems == null || names.size() != spec.count) {
+            return;
+        }
+        Map<String, NMakewindow.Ingredient> byName = new HashMap<>();
+        List<NMakewindow.Ingredient> slots = new ArrayList<>();
+        for (String name : names) {
+            NMakewindow.Ingredient ing = byName.get(name);
+            if (ing == null) {
+                JSONObject found = null;
+                for (JSONObject obj : categoryItems) {
+                    if (obj != null && name.equals(obj.optString("name"))) {
+                        found = obj;
+                        break;
+                    }
+                }
+                if (found == null || (NContext.findIn(name) == null && NContext.findInGlobal(name) == null)) {
+                    System.out.println("[AutocraftBot] " + name + " has no area; the saved " + spec.name + " slots are not used");
+                    return;
+                }
+                byName.put(name, ing = mwnd.new Ingredient(found));
+            }
+            slots.add(ing);
+        }
+        spec.mix = (byName.size() > 1) ? List.copyOf(slots) : null;
+        spec.ing = slots.get(0);
     }
 
     /**
