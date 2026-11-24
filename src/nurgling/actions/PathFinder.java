@@ -620,7 +620,10 @@ public class PathFinder implements Action {
         NPFMap.Cell[][] cells = pfmap.getCells();
         if(start_pos.x < pfmap.size && start_pos.y<pfmap.size && start_pos.x>=0 && start_pos.y>=0) {
             if (cells[start_pos.x][start_pos.y].val != 0) {
-                if (target_id >= 0 && cells[start_pos.x][start_pos.y].content.contains(target_id) && !test) {
+                // Already there only when the target is all that blocks the start cell. A cell the target shares with
+                // other objects is a pocket between them (after opening the chest next door): the target can sit
+                // diagonally behind a corner, and not walking hands the approach to the server's straight-line walk.
+                if (target_id >= 0 && onlyGob(cells[start_pos.x][start_pos.y].content, target_id) && !test) {
                     dn = true;
                     return false;
                 }
@@ -753,10 +756,28 @@ public class PathFinder implements Action {
                         }
                     }
                 }
-                return targets == null ? new ArrayList<>():targets;
+                // No free cell borders every object around the start (wedged between three): step off to the free cell
+                // nearest where the character stands instead of giving up with nothing walked.
+                if (targets == null || targets.isEmpty()) {
+                    ArrayList<Coord> near = nearestFreeCells(pos);
+                    Coord2d at = begin;
+                    near.sort(Comparator.comparingDouble(c -> Utils.pfGridToWorld(pfmap.cells[c.x][c.y].pos).dist(at)));
+                    return near;
+                }
+                return targets;
             }
         }
         return new ArrayList<>(Arrays.asList(pos));
+    }
+
+    /** Whether every object in a cell's content is the gob with this id. */
+    private static boolean onlyGob(List<Long> content, long id) {
+        if (content.isEmpty())
+            return false;
+        for (long c : content)
+            if (c != id)
+                return false;
+        return true;
     }
 
     private void checkAndAdd(Coord pos, ArrayList<Coord> coords, AtomicBoolean check) {
