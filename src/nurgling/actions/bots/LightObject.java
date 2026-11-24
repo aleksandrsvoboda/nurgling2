@@ -16,6 +16,7 @@ import nurgling.widgets.NEquipory;
 import nurgling.widgets.Specialisation;
 
 import java.util.ArrayList;
+import java.util.function.BooleanSupplier;
 
 /**
  * Unified workstation lighter.
@@ -26,11 +27,13 @@ import java.util.ArrayList;
  * <ul>
  *   <li><b>acquire</b> (once) — take the torch to hand / lift the candelabrum;</li>
  *   <li><b>apply</b> (per gob) — carry the implement to each target and ignite it;</li>
- *   <li><b>release</b> (once) — return the torch to its post/slot, place the candelabrum back.</li>
+ *   <li><b>release</b> (once) — return the torch to its post/slot, the lantern to its stand, place the
+ *       candelabrum back.</li>
  * </ul>
  *
  * <p>Priority order: embers → equipped lit torch → unlit torch + brazier → in-view lit candelabrum →
- * torchpost (lit) → torchpost (unlit) + brazier → box of matches → branches → (bot path only, last resort) fetch a lit
+ * torchpost (lit) → lantern stand (lit) → torchpost (unlit) + brazier → lantern stand (unlit) + brazier →
+ * box of matches → branches → (bot path only, last resort) fetch a lit
  * candelabrum from its designated spec area. The area fetch is last because it can be a long round-trip;
  * every nearby option is preferred over it.
  *
@@ -239,8 +242,16 @@ public class LightObject implements Action {
         tryLitTorchOnTorchpost(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
+        // Priority 4b: Lit lantern on a lantern stand.
+        tryLitLanternOnStand(gui, onGobs);
+        if (remaining.isEmpty()) return Results.SUCCESS();
+
         // Priority 5: Unlit torch on a torchpost + nearby lit fire source.
         tryUnlitTorchpostWithBrazier(gui, onGobs);
+        if (remaining.isEmpty()) return Results.SUCCESS();
+
+        // Priority 5b: Unlit lantern on a lantern stand + nearby lit fire source.
+        tryUnlitLanternOnStandWithFire(gui, onGobs);
         if (remaining.isEmpty()) return Results.SUCCESS();
 
         // Priority 6: Box of matches carried in inventory/belt.
@@ -279,7 +290,13 @@ public class LightObject implements Action {
         tryLitTorchOnTorchpost(gui, onItem);
         if (item.lit()) return Results.SUCCESS();
 
+        tryLitLanternOnStand(gui, onItem);
+        if (item.lit()) return Results.SUCCESS();
+
         tryUnlitTorchpostWithBrazier(gui, onItem);
+        if (item.lit()) return Results.SUCCESS();
+
+        tryUnlitLanternOnStandWithFire(gui, onItem);
         if (item.lit()) return Results.SUCCESS();
 
         lightItemAtFire(gui);
@@ -290,6 +307,8 @@ public class LightObject implements Action {
     private void applyTorchToItem(NGameUI gui) throws InterruptedException {
         WItem target = item.find();
         if (gui.vhand == null || target == null || item.lit())
+            return;
+        if (lanternInHand(gui, false) && !lanternInHand(gui, true))
             return;
         NUtils.itemact(target);
         waitForItemLit(ITEM_LIGHT_TIMEOUT);
@@ -400,6 +419,8 @@ public class LightObject implements Action {
         for (Gob t : orderByProximity(remaining)) {
             if (gui.vhand == null)
                 break; // torch left our hand (extinguished / lost) — stop and release
+            if (lanternInHand(gui, false) && !lanternInHand(gui, true))
+                break; // a lantern that went out stays in hand: no progress bar would ever come
             LightConfig config = getConfig(t.ngob.name);
             if (config == null)
                 continue;
@@ -678,6 +699,169 @@ public class LightObject implements Action {
         }
     }
 
+    // --- Priority 4b / 5b: Lantern on a lantern stand ---
+    //
+    // A lantern is used just like a torch, but it lives on a stand: right-clicking the stand puts it
+    // in hand, and right-clicking the stand with it in hand hangs it back. It goes back the way it
+    // was found: a lantern that was already lit stays lit, one the bot lit itself is put out first
+    // (dropping it into the inventory does that, as with a torch) so it does not burn its fuel.
+
+    private static final NAlias LANTERN_STAND = new NAlias("gfx/terobjs/lanternstand");
+    private static final String LANTERN_RES = "gfx/invobjs/lantern";
+    private static final String LIT_LANTERN_RES = "gfx/invobjs/lantern-l";
+    /** A stand that does not hand the lantern over, or a lantern that will not catch, fails the tier
+     *  after this long instead of hanging the bot. */
+    private static final long LANTERN_TIMEOUT = 5000;
+
+    private void tryLitLanternOnStand(NGameUI gui, TorchUse use) throws InterruptedException {
+        Gob stand = findLanternStand(true);
+        if (stand == null)
+            return;
+
+        // Acquire (once)
+        if (!takeLanternFromStand(gui, stand))
+            return;
+
+        // Apply (per gob)
+        use.apply(gui);
+
+        // Release (once)
+        returnLanternToStand(gui, stand);
+    }
+
+    private void tryUnlitLanternOnStandWithFire(NGameUI gui, TorchUse use) throws InterruptedException {
+        Gob stand = findLanternStand(false);
+        if (stand == null)
+            return;
+        Gob fire = findLitFireSource();
+        if (fire == null)
+            return;
+
+        // Acquire (once): take the lantern and light it at the fire.
+        if (!takeLanternFromStand(gui, stand))
+            return;
+        new PathFinder(fire).run(gui);
+        NUtils.activateItem(fire);
+        waitForProgress(gui, LANTERN_TIMEOUT);
+        waitUntil(() -> lanternInHand(gui, true), LANTERN_TIMEOUT);
+        System.out.println("LightObject: lantern after lighting at " + fire.ngob.name + " -> " + handRes(gui));
+
+        // Apply (per gob) - only with a burning lantern; one that would not catch goes straight back.
+        boolean litByUs = lanternInHand(gui, true);
+        if (litByUs)
+            use.apply(gui);
+
+        // Release (once): put out what we lit, then hang it back.
+        if (litByUs && lanternInHand(gui, true))
+            extinguishLantern(gui);
+        returnLanternToStand(gui, stand);
+    }
+
+    /**
+     * Puts out the lantern in hand by dropping it into the inventory and taking it back. With no
+     * room it stays in hand and goes back lit, like the torchpost tier. The lantern is picked up by
+     * identity - whichever lantern was not in the inventory before the drop - so a spare lantern the
+     * player carries is never hung in its place.
+     */
+    private void extinguishLantern(NGameUI gui) throws InterruptedException {
+        NInventory inv = gui.getInventory();
+        if (gui.vhand == null || inv.getNumberFreeCoord(gui.vhand) <= 0)
+            return;
+        // Snapshot on the UI thread, which owns the widget tree.
+        ArrayList<GItem> before = new ArrayList<>();
+        waitUntil(() -> { before.addAll(lanternsIn(inv)); return true; }, LANTERN_TIMEOUT);
+        NUtils.dropToInv();
+        NUtils.getUI().core.addTask(new WaitFreeHand());
+        final WItem[] dropped = {null};
+        waitUntil(() -> {
+            for (Widget w = inv.child; w != null; w = w.next)
+                if (w instanceof WItem && isLantern((WItem) w) && !before.contains(((WItem) w).item)) {
+                    dropped[0] = (WItem) w;
+                    return true;
+                }
+            return false;
+        }, LANTERN_TIMEOUT);
+        if (dropped[0] == null) {
+            System.out.println("LightObject: dropped lantern did not show up in the inventory");
+            return;
+        }
+        dropped[0].item.wdgmsg("take", Coord.z);
+        waitUntil(() -> lanternInHand(gui, false), LANTERN_TIMEOUT);
+    }
+
+    private static ArrayList<GItem> lanternsIn(NInventory inv) {
+        ArrayList<GItem> found = new ArrayList<>();
+        for (Widget w = inv.child; w != null; w = w.next)
+            if (w instanceof WItem && isLantern((WItem) w))
+                found.add(((WItem) w).item);
+        return found;
+    }
+
+    private static boolean isLantern(WItem w) {
+        Resource res = w.item.getres();
+        return res != null && (res.name.equals(LANTERN_RES) || res.name.equals(LIT_LANTERN_RES));
+    }
+
+    /** Nearest stand holding a lantern in the wanted lit state, or null. */
+    private Gob findLanternStand(boolean lit) {
+        Coord2d p = NUtils.player().rc;
+        Gob best = null;
+        for (Gob stand : Finder.findGobs(LANTERN_STAND)) {
+            TorchpostState state = getTorchpostState(stand);
+            if (!state.hasTorch || state.isLit != lit)
+                continue;
+            if (best == null || stand.rc.dist(p) < best.rc.dist(p))
+                best = stand;
+        }
+        return best;
+    }
+
+    private boolean takeLanternFromStand(NGameUI gui, Gob stand) throws InterruptedException {
+        new PathFinder(stand).run(gui);
+        NUtils.rclickGob(stand);
+        waitUntil(() -> lanternInHand(gui, false), LANTERN_TIMEOUT);
+        if (!lanternInHand(gui, false)) {
+            System.out.println("LightObject: lantern stand " + stand.id + " did not hand over its lantern, hand=" + handRes(gui));
+            return false;
+        }
+        return true;
+    }
+
+    private void returnLanternToStand(NGameUI gui, Gob stand) throws InterruptedException {
+        if (gui.vhand == null)
+            return;
+        new PathFinder(stand).run(gui);
+        NUtils.activateItem(stand);
+        NUtils.getUI().core.addTask(new WaitFreeHand());
+    }
+
+    /** Whether a lantern is in hand; with {@code lit}, only a burning one counts. */
+    private static boolean lanternInHand(NGameUI gui, boolean lit) {
+        String res = handRes(gui);
+        if (res == null)
+            return false;
+        return lit ? res.equals(LIT_LANTERN_RES) : (res.equals(LANTERN_RES) || res.equals(LIT_LANTERN_RES));
+    }
+
+    private static String handRes(NGameUI gui) {
+        WItem hand = gui.vhand;
+        if (hand == null)
+            return null;
+        Resource res = hand.item.getres();
+        return (res == null) ? null : res.name;
+    }
+
+    /** Waits for {@code cond} or the timeout, whichever comes first. */
+    private static void waitUntil(BooleanSupplier cond, long timeoutMs) throws InterruptedException {
+        final long deadline = System.currentTimeMillis() + timeoutMs;
+        NUtils.getUI().core.addTask(new NTask() {
+            @Override
+            public boolean check() {
+                return cond.getAsBoolean() || System.currentTimeMillis() >= deadline;
+            }
+        });
+    }
+
     // --- Priority 6: Box of matches (batched: take to hand once, light everything, put back once) ---
 
     private static final NAlias MATCHES_ALIAS = new NAlias("Box of Matches");
@@ -907,6 +1091,11 @@ public class LightObject implements Action {
         });
     }
 
+    /**
+     * Reads a torchpost or a lantern stand: both hang their item as a gfx/fx/eq overlay whose last
+     * sdt byte is the item's lit flag. Confirmed in game for the lantern stand on 2026-11-24: no
+     * overlay = empty, last byte 0 = lantern unlit, 1 = lit.
+     */
     private static TorchpostState getTorchpostState(Gob torchpost) {
         TorchpostState state = new TorchpostState();
         for (Gob.Overlay ol : torchpost.ols) {
