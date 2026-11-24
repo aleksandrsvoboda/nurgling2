@@ -86,10 +86,11 @@ public class NCharlist extends Charlist {
         int y = 0;
         heading.move(Coord.of(0, y));
         y += heading.sz.y + GAP;
-        if (tabs.visible) {
-            tabs.move(Coord.of(0, y));
-            y += tabs.sz.y + GAP;
-        }
+        /* The tab row's space is kept even while it is hidden: the server sends each character's
+         * world ("srv") after the character itself, so a second world - and with it the tabs - can
+         * turn up after the list is already on screen, and the rows must not jump down then. */
+        tabs.move(Coord.of(0, y));
+        y += tabs.sz.y + GAP;
         sortbtn.move(Coord.of(W - sortbtn.sz.x, y));
         y += sortbtn.sz.y + GAP;
         int fy = sz.y - playbtn.sz.y;
@@ -170,7 +171,6 @@ public class NCharlist extends Charlist {
                 tabs.show();
             else
                 tabs.hide();
-            arrange();
         }
         List<Char> shown = getDisplayChars();
         if (((list.sel == null) || !shown.contains(list.sel)) && !shown.isEmpty())
