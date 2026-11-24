@@ -108,6 +108,9 @@ public class SaveCraftPresetDialog extends Window {
     }
 
     private String getSpecDisplayName(NMakewindow.Spec spec) {
+        if (spec.mixed()) {
+            return L10n.get("craftpreset.mix", spec.kinds().size(), spec.name);
+        }
         if (spec.ing != null) {
             return spec.ing.name;
         }
@@ -169,6 +172,14 @@ public class SaveCraftPresetDialog extends Window {
             if (spec.ing != null) {
                 inputSpec.setPreferredIngredient(spec.ing.name);
                 inputSpec.setIgnored(spec.ing.isIgnored);
+                inputSpec.setAny(spec.ing.anyOf != null);
+            }
+            if (spec.mixed()) {
+                List<String> mix = new ArrayList<>();
+                for (NMakewindow.Ingredient ing : spec.mix) {
+                    mix.add(ing.name);
+                }
+                inputSpec.setMix(mix);
             }
 
             inputs.add(inputSpec);

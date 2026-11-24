@@ -455,17 +455,24 @@ public class TakeItems2 implements Action
         return ItemVariants.isKey(item) ? (it -> ItemVariants.matches(it, item)) : null;
     }
 
-    /** Copies of {@link #item} in the player's inventory, only its kind for a kind key. */
+    /**
+     * Copies of {@link #item} in the player's inventory, only its kind for a kind key. Under
+     * {@link #exactMatch} only that exact name counts: a held "Male Silkmoth" is no "Silkmoth".
+     */
     private int held(NGameUI gui) throws InterruptedException
     {
-        ArrayList<WItem> items = gui.getInventory().getItems(new NAlias(ItemVariants.base(item)));
+        String base = ItemVariants.base(item);
+        ArrayList<WItem> items = gui.getInventory().getItems(new NAlias(base));
         Predicate<NGItem> filter = kindFilter();
-        if(filter == null)
+        if(filter == null && !exactMatch)
             return items.size();
         int n = 0;
         for(WItem witem: items)
         {
-            if(filter.test((NGItem) witem.item))
+            NGItem it = (NGItem) witem.item;
+            if(exactMatch && !base.equalsIgnoreCase(it.name()))
+                continue;
+            if(filter == null || filter.test(it))
                 n++;
         }
         return n;

@@ -15,6 +15,7 @@ import nurgling.areas.*;
 import nurgling.i18n.L10n;
 import nurgling.sessions.BotExecutor;
 import nurgling.tools.*;
+import nurgling.widgets.cookbook.CookbookTheme;
 import org.json.*;
 
 import java.awt.*;
@@ -93,6 +94,17 @@ public class NMakewindow extends Widget {
         private List<ItemInfo> info;
 
         public Ingredient ing = null;
+        /**
+         * One pick per item of a category input that needs several, when they are not all the same
+         * kind: Bug Collection and Horrible Knot come out better the more different bugs or strings
+         * go in. Exactly count entries, kinds may repeat; ing is the first. Null is an ordinary pick
+         * of one kind for every item. Craft then makes one craft per trip, since the server chooses
+         * which held items go into a craft. Replaced whole, never changed in place: a running craft
+         * reads it from the bot thread.
+         */
+        public List<Ingredient> mix = null;
+        private Tex moreTex;
+        private int moreN;
 
         public int using = 0;
         public List<MenuGrid.Pagina> rpag = null;
@@ -121,6 +133,10 @@ public class NMakewindow extends Widget {
                 {
                     sprite().draw(g);
                 }
+                else if(mixed())
+                {
+                    drawMix(g);
+                }
                 else
                 {
                     ItemIcons.draw(g, ing.tex(), Coord.z, UI.scale(32));
@@ -128,6 +144,46 @@ public class NMakewindow extends Widget {
             } catch(Loading e) {}
             if(num != null)
                 g.aimage(num, Inventory.sqsz, 1.0, 1.0);
+        }
+
+        /** Whether this input's items are picked slot by slot. */
+        public boolean mixed() {
+            return mix != null;
+        }
+
+        /** The kinds in the slots, each once, in slot order. */
+        public List<Ingredient> kinds() {
+            List<Ingredient> ret = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            for(Ingredient ing : mix)
+                if(seen.add(ing.name))
+                    ret.add(ing);
+            return ret;
+        }
+
+        /** Whether this input is picked slot by slot: a category input of 2 to 9 items, one row of slots. */
+        boolean mixable() {
+            return categories && count > 1 && count <= width && inputs.contains(this);
+        }
+
+        /** The kinds in the slots as quarter-size icons; past four, the top right quarter says how many more. */
+        private void drawMix(GOut g) {
+            List<Ingredient> m = kinds();
+            int half = UI.scale(16);
+            boolean more = m.size() > 4;
+            Coord[] cells = more
+                    ? new Coord[] {Coord.z, Coord.of(0, half), Coord.of(half, half)}
+                    : new Coord[] {Coord.z, Coord.of(half, 0), Coord.of(0, half), Coord.of(half, half)};
+            for(int i = 0; i < cells.length && i < m.size(); i++)
+                ItemIcons.draw(g, m.get(i).tex(), cells[i], half);
+            if(more) {
+                int n = m.size() - cells.length;
+                if(moreTex == null || moreN != n) {
+                    moreN = n;
+                    moreTex = new TexI(Utils.outline2(Text.render("+" + n, Color.WHITE).img, Utils.contrast(Color.WHITE)));
+                }
+                g.aimage(moreTex, Coord.of(half + half / 2, half / 2), 0.5, 0.5);
+            }
         }
 
         private int opt = 0;
@@ -232,7 +288,7 @@ public class NMakewindow extends Widget {
                     categories = false;
                 }
                 for(Spec s : inputs) {
-                    if(s.categories && s.ing!=null)
+                    if(s.categories && s.ing!=null && s.ing.anyOf == null)
                     {
                         s.ing.logistic = (NContext.findIn(s.ing.name) != null);
                     }
@@ -277,6 +333,17 @@ public class NMakewindow extends Widget {
             if(s.spr != null)
                 s.spr.tick(dt);
             s.tick(dt);
+        }
+        if(autoMode) {
+            for(Spec s : inputs) {
+                if(s.ing != null && s.ing.anyOf != null)
+                    s.ing.tick(dt);
+                List<Ingredient> m = s.mix;
+                if(m != null) {
+                    for(Ingredient ing : m)
+                        ing.logistic = (NContext.findIn(ing.name) != null);
+                }
+            }
         }
         if(cat!=null) {
             cat.raise();
@@ -355,6 +422,11 @@ public class NMakewindow extends Widget {
         for(Spec s : inputs) {
             if(s.ing != null && !s.ing.isIgnored)
                 names.add(s.ing.name);
+            List<Ingredient> m = s.mix;
+            if(m != null) {
+                for(Ingredient ing : m)
+                    names.add(ing.name);
+            }
             if(s.name == null)
                 continue;
             ArrayList<JSONObject> options = s.categories ? CraftCategories.options(s.name) : null;
@@ -512,9 +584,10 @@ public class NMakewindow extends Widget {
                         // If category has only one item and it's not optional, auto-select it
                         if (categoryItems != null && categoryItems.size() == 1 && !isOpt) {
                             s.ing = new Ingredient(categoryItems.get(0));
+                            s.mix = null;
                             return true;
                         }
-                        NUtils.getGameUI().add(cat = new Categories(categoryItems, s, isOpt), sc.add(this.parent.c).add(this.c).add(Inventory.sqsz.x / 2, Inventory.sqsz.y * 2).add(UI.scale(2, 2)));
+                        NUtils.getGameUI().add(cat = new Categories(categoryItems, s, isOpt, s.mixable()),sc.add(this.parent.c).add(this.c).add(Inventory.sqsz.x / 2, Inventory.sqsz.y * 2).add(UI.scale(2, 2)));
                         pack();
                         NUtils.getGameUI().craftwnd.lower();
                         cat.raise();
@@ -696,7 +769,11 @@ public class NMakewindow extends Widget {
                             sg.image(categories, Coord.z);
                         else
                         {
-                            if(s.ing.isIgnored)
+                            if(s.mixed())
+                            {
+                                drawMixSource(sg, s.mix);
+                            }
+                            else if(s.ing.isIgnored)
                             {
                                 sg.image(ignoreOverlay, Coord.z);
                             }
@@ -989,6 +1066,28 @@ public class NMakewindow extends Widget {
     private BufferedImage withSource(Spec s, BufferedImage tip) {
         if(!autoMode || !inputs.contains(s))
             return tip;
+        List<Ingredient> m = s.mix;
+        if(m != null) {
+            BufferedImage img = Text.render(L10n.get("craft.mix_tip")).img;
+            for(Ingredient ing : s.kinds()) {
+                int n = 0;
+                for(Ingredient sl : m)
+                    if(sl.name.equals(ing.name))
+                        n++;
+                img = ItemInfo.catimgs(UI.scale(2), img, Text.render(n + " x " + ing.name + ": " + sourceLine(ing.name)).img);
+            }
+            return (tip == null) ? img : ItemInfo.catimgs(UI.scale(2), tip, img);
+        }
+        if(s.ing != null && s.ing.anyOf != null) {
+            int n = 0;
+            ArrayList<JSONObject> options = CraftCategories.options(s.ing.anyOf);
+            if(options != null)
+                for(JSONObject obj : options)
+                    if(NContext.findIn(obj.optString("name")) != null)
+                        n++;
+            BufferedImage img = Text.render(n > 0 ? L10n.get("craft.src_any", n) : L10n.get("craft.src_missing")).img;
+            return (tip == null) ? img : ItemInfo.catimgs(UI.scale(2), tip, img);
+        }
         String name;
         if(s.ing != null)
             name = s.ing.isIgnored ? null : s.ing.name;
@@ -996,16 +1095,33 @@ public class NMakewindow extends Widget {
             name = s.categories ? null : s.name;
         if(name == null)
             return tip;
-        String line;
+        BufferedImage img = Text.render(sourceLine(name)).img;
+        return (tip == null) ? img : ItemInfo.catimgs(UI.scale(2), tip, img);
+    }
+
+    private String sourceLine(String name) {
         NArea area = NContext.findIn(name);
         if(area != null)
-            line = L10n.get("craft.src_area", area.name);
-        else if(inStorage(name))
-            line = L10n.get("craft.src_storage", storageCounts.getOrDefault(name, 0));
-        else
-            line = L10n.get("craft.src_missing");
-        BufferedImage img = Text.render(line).img;
-        return (tip == null) ? img : ItemInfo.catimgs(UI.scale(2), tip, img);
+            return L10n.get("craft.src_area", area.name);
+        if(inStorage(name))
+            return L10n.get("craft.src_storage", storageCounts.getOrDefault(name, 0));
+        return L10n.get("craft.src_missing");
+    }
+
+    /** A mix is ready once every kind has an area or storage to come from. */
+    private void drawMixSource(GOut sg, List<Ingredient> m) {
+        boolean ready = true, storage = false;
+        for(Ingredient ing : m) {
+            if(ing.logistic)
+                continue;
+            if(inStorage(ing.name))
+                storage = true;
+            else
+                ready = false;
+        }
+        sg.image(ready ? aready : anotfound, Coord.z);
+        if(ready && storage)
+            sg.image(storageBadge, Coord.z);
     }
 
     private static String getDynamicName(GSprite spr) {
@@ -1139,8 +1255,14 @@ public class NMakewindow extends Widget {
         public String name;
         boolean logistic;
         public boolean isIgnored = false;
+        /**
+         * For "Any Block of Wood": the category input it stands for, whose every member may be used.
+         * Null for an ingredient that is one item.
+         */
+        public String anyOf = null;
         private JSONObject icon;
         private Tex tex;
+        private double anyAge = ANY_REFRESH;
 
         public Ingredient(JSONObject obj)
         {
@@ -1165,7 +1287,11 @@ public class NMakewindow extends Widget {
         /** The ingredient with its image loaded, as a chosen ingredient must have. */
         Ingredient loaded()
         {
-            return (img != null) ? this : new Ingredient(icon);
+            if(img != null)
+                return this;
+            Ingredient ret = new Ingredient(icon);
+            ret.anyOf = anyOf;
+            return ret;
         }
 
         /** The icon to draw, or null while it loads. */
@@ -1180,10 +1306,48 @@ public class NMakewindow extends Widget {
 
         void tick(double dt)
         {
-            if (!isIgnored) {
+            if (anyOf != null) {
+                // Every member of the category is looked up, so only now and then
+                anyAge += dt;
+                if (anyAge >= ANY_REFRESH) {
+                    anyAge = 0;
+                    logistic = anyInArea(anyOf);
+                }
+            } else if (!isIgnored) {
                 logistic = (NContext.findIn(name) != null);
             }
         }
+    }
+
+    private static final double ANY_REFRESH = 1;
+
+    /** Whether a category input may be taken as "Any": not butter or milk, whose kinds are routed apart. */
+    static boolean anyAllowed(String category) {
+        ArrayList<JSONObject> options = CraftCategories.options(category);
+        return options != null && options.size() > 1 && ItemVariants.craftOptions(category).isEmpty();
+    }
+
+    /** Whether a nearby area holds any member of a category. */
+    static boolean anyInArea(String category) {
+        ArrayList<JSONObject> options = CraftCategories.options(category);
+        if(options != null) {
+            for(JSONObject obj : options)
+                if(NContext.findIn(obj.optString("name")) != null)
+                    return true;
+        }
+        return false;
+    }
+
+    /**
+     * "Any Block of Wood": every member of a category input, drawn with the input's own generic icon.
+     * Craft takes whatever members the areas hold. Without load the image is left to ItemIcons.
+     */
+    public Ingredient anyIngredient(Spec s, boolean load)
+    {
+        JSONObject icon = new JSONObject().put("static", s.res.get().name).put("name", L10n.get("craft.any", s.name));
+        Ingredient ing = new Ingredient(icon, load);
+        ing.anyOf = s.name;
+        return ing;
     }
 
     final static Coord catoff = UI.scale(8,8);
@@ -1197,7 +1361,36 @@ public class NMakewindow extends Widget {
             (Inventory.sqsz.x+UI.scale(1))*(totalSize/width+(totalSize%width!=0?1:0))
         ).add(UI.scale(20,18));
     }
-    
+
+    private static Text mixHint = null;
+    private static Text mixHint() {
+        if(mixHint == null)
+            mixHint = Text.render(L10n.get("craft.mix_hint"));
+        return mixHint;
+    }
+    private static final Map<Integer, Tex> useCount = new HashMap<>();
+    /** "2" in the accent colour: how many slots an option fills. */
+    private static Tex useCount(int n) {
+        return useCount.computeIfAbsent(n, k -> new TexI(Utils.outline2(Text.render(Integer.toString(k), CookbookTheme.accent).img, Color.BLACK)));
+    }
+
+    private static final int cellStep() { return Inventory.sqsz.x + UI.scale(1); }
+    /** Height of the slot row above the options: one cell and a gap. */
+    private static int slotRowH() { return Inventory.sqsz.y + UI.scale(6); }
+
+    /**
+     * The picker's size. An input that needs several items gets a row of slots above the options,
+     * one per item, and a line under them that tells how to fill them.
+     */
+    private static Coord popupSize(int totalSize, int slots) {
+        Coord sz = calculateSize(totalSize);
+        if(slots == 0)
+            return sz;
+        Coord hint = mixHint().sz();
+        int w = Math.max(sz.x, Math.max(hint.x + UI.scale(24), slots * cellStep() + UI.scale(18)));
+        return Coord.of(w, sz.y + slotRowH() + hint.y + UI.scale(4));
+    }
+
     public class Categories extends Widget
     {
 
@@ -1208,12 +1401,45 @@ public class NMakewindow extends Widget {
 
         Spec s;
         boolean isOptional;
+        /**
+         * For an input that needs several items, one slot per item, each its own pick: all the same
+         * kind, all different, or anything between. Click fills every slot, shift+click the selected
+         * one. Null for any other input.
+         */
+        final Ingredient[] slots;
+        int cursor = 0;
+        boolean edited = false;
+        private final Coord gridOff;
+        private final int gridBottom;
+        /** Each option with its image loaded, made once however many slots it fills. */
+        private final Map<Ingredient, Ingredient> loaded = new HashMap<>();
         
-        public Categories(ArrayList<JSONObject> objs, Spec s, boolean isOptional)
+        public Categories(ArrayList<JSONObject> objs, Spec s, boolean isOptional, boolean mixable)
         {
-            super(calculateSize(objs.size() + (isOptional ? 1 : 0)));
+            this(objs, s, isOptional, mixable, NMakewindow.this.inputs.contains(s) && anyAllowed(s.name));
+        }
+
+        private Categories(ArrayList<JSONObject> objs, Spec s, boolean isOptional, boolean mixable, boolean any)
+        {
+            super(popupSize(objs.size() + (isOptional ? 1 : 0) + (any ? 1 : 0), mixable ? s.count : 0));
+            int total = objs.size() + (isOptional ? 1 : 0) + (any ? 1 : 0);
             this.s = s;
             this.isOptional = isOptional;
+            gridOff = mixable ? catoff.add(0, slotRowH()) : catoff;
+            gridBottom = gridOff.y + cellStep() * (total / width + (total % width != 0 ? 1 : 0));
+            if(mixable) {
+                slots = new Ingredient[s.count];
+                List<Ingredient> m = s.mix;
+                if(m != null && m.size() == s.count) {
+                    for(int i = 0; i < slots.length; i++)
+                        slots[i] = m.get(i);
+                } else if(s.ing != null && !s.ing.isIgnored && s.ing.anyOf == null) {
+                    Arrays.fill(slots, s.ing);
+                }
+                cursor = Math.max(0, firstEmpty(0));
+            } else {
+                slots = null;
+            }
             add(fr = new Frame(sz.sub(catend),true));
             
             // Add "ignore" option first if this is optional
@@ -1226,6 +1452,10 @@ public class NMakewindow extends Widget {
                 }
             }
             
+            if(any)
+            {
+                data.add(anyIngredient(s, false));
+            }
             for(JSONObject obj: objs)
             {
                 data.add(new Ingredient(obj, false));
@@ -1234,17 +1464,60 @@ public class NMakewindow extends Widget {
             autofocus =true;
         }
 
+        private Coord optionAt(int i)
+        {
+            return gridOff.add((i % width) * cellStep(), (i / width) * cellStep());
+        }
+
+        private Coord slotAt(int i)
+        {
+            return catoff.add(i * cellStep(), 0);
+        }
+
+        /** The first empty slot from i on, wrapping round; -1 when every slot is filled. */
+        private int firstEmpty(int from)
+        {
+            for(int k = 0; k < slots.length; k++)
+            {
+                int i = (from + k) % slots.length;
+                if(slots[i] == null)
+                    return i;
+            }
+            return -1;
+        }
+
+        private int uses(Ingredient ing)
+        {
+            int n = 0;
+            for(Ingredient sl : slots)
+                if(sl != null && sl.name.equals(ing.name))
+                    n++;
+            return n;
+        }
+
         @Override
         public void draw(GOut g)
         {
             super.draw(g);
             g.chcolor(bg);
             g.frect(UI.scale(4,4), fr.inner());
-            Coord pos = new Coord(catoff);
-            Coord shift = new Coord(0,0);
-            for(Ingredient ing: data)
+            g.chcolor();
+            if(slots != null)
             {
-                GOut sg = g.reclip(pos, invsq.sz());
+                for(int i = 0; i < slots.length; i++)
+                {
+                    GOut sg = g.reclip(slotAt(i), invsq.sz());
+                    sg.image(invsq, Coord.z);
+                    if(slots[i] != null)
+                        ItemIcons.draw(sg, slots[i].tex(), Coord.z, UI.scale(32));
+                    if(i == cursor)
+                        CookbookTheme.frame(sg, Coord.z, invsq.sz(), CookbookTheme.accent);
+                }
+            }
+            for(int i = 0; i < data.size(); i++)
+            {
+                Ingredient ing = data.get(i);
+                GOut sg = g.reclip(optionAt(i), invsq.sz());
                 ItemIcons.draw(sg, ing.tex(), Coord.z, UI.scale(32));
                 if(ing.isIgnored)
                 {
@@ -1263,20 +1536,40 @@ public class NMakewindow extends Widget {
                 {
                     sg.image(anotfound, Coord.z,UI.scale(32,32));
                 }
-                if(shift.x<width-1)
+                int n = (slots == null || ing.isIgnored || ing.anyOf != null) ? 0 : uses(ing);
+                if(n > 0)
                 {
-                    pos = pos.add(Inventory.sqsz.x + UI.scale(1), 0);
-                    shift.x+=1;
-                }
-                else
-                {
-                    pos.x = UI.scale(8);
-                    shift.x = 0;
-                    pos = pos.add(0, Inventory.sqsz.y + UI.scale(1));
+                    CookbookTheme.frame(sg, Coord.z, invsq.sz(), CookbookTheme.accent);
+                    sg.image(useCount(n), UI.scale(3, 1));
                 }
             }
-
+            if(slots != null)
+                g.image(mixHint().tex(), Coord.of(catoff.x, gridBottom + UI.scale(1)));
         }
+
+        private Ingredient loaded(Ingredient ing)
+        {
+            return loaded.computeIfAbsent(ing, Ingredient::loaded);
+        }
+
+        /** Make the filled slots the input's pick: one kind when they all agree, else the slots. */
+        private void applySlots()
+        {
+            if(!edited || firstEmpty(0) >= 0)
+                return;
+            boolean same = true;
+            for(Ingredient sl : slots)
+                same &= sl.name.equals(slots[0].name);
+            s.mix = same ? null : List.of(slots);
+            s.ing = slots[0];
+        }
+
+        private void close()
+        {
+            destroy();
+            cat = null;
+        }
+
         UI.Grab mg;
         @Override
         protected void added()
@@ -1293,39 +1586,50 @@ public class NMakewindow extends Widget {
 
         @Override
         public boolean mousedown(MouseDownEvent ev) {
-            Coord pos = new Coord(catoff);
-            if(!ev.c.isect(pos, sz.sub(catend)))
+            if(!ev.c.isect(catoff, sz.sub(catend)))
             {
-                destroy();
-                cat = null;
+                applySlots();
+                close();
                 return true;
             }
-            else
+            if(slots != null)
             {
-                Coord shift = new Coord(0,0);
-                for(Ingredient ing: data)
+                for(int i = 0; i < slots.length; i++)
                 {
-                    if(ev.c.isect(pos, invsq.sz()))
+                    if(ev.c.isect(slotAt(i), invsq.sz()))
                     {
-                        s.ing = ing.loaded();
-                        destroy();
-                        cat = null;
+                        cursor = i;
                         return true;
                     }
-                    if(shift.x<width-1)
-                    {
-                        pos = pos.add(Inventory.sqsz.x + UI.scale(1), 0);
-                        shift.x+=1;
-                    }
+                }
+            }
+            for(int i = 0; i < data.size(); i++)
+            {
+                if(!ev.c.isect(optionAt(i), invsq.sz()))
+                    continue;
+                Ingredient ing = data.get(i);
+                if(slots != null && !ing.isIgnored && ing.anyOf == null && ui.modshift)
+                {
+                    slots[cursor] = loaded(ing);
+                    edited = true;
+                    int next = firstEmpty(cursor + 1);
+                    if(next >= 0)
+                        cursor = next;
+                    else if(cursor < slots.length - 1)
+                        cursor++;
                     else
                     {
-                        pos.x = UI.scale(8);
-                        pos = pos.add(0, Inventory.sqsz.y + UI.scale(1));
-                        shift.x = 0;
+                        applySlots();
+                        close();
                     }
+                    return true;
                 }
+                s.ing = loaded(ing);
+                s.mix = null;
+                close();
                 return true;
             }
+            return true;
         }
 
 
@@ -1341,34 +1645,22 @@ public class NMakewindow extends Widget {
 
         @Override
         public Object tooltip(Coord c, Widget prev) {
-            Coord pos = new Coord(catoff);
-            if(!c.isect(pos, sz.sub(catend)))
-            {
+            if(!c.isect(catoff, sz.sub(catend)))
                 return null;
-            }
-            else
+            if(slots != null)
             {
-                Coord shift = new Coord(0,0);
-                for(Ingredient ing: data)
+                for(int i = 0; i < slots.length; i++)
                 {
-                    if(c.isect(pos, invsq.sz()))
-                    {
-                        return ing.name;
-                    }
-                    if(shift.x<width-1)
-                    {
-                        pos = pos.add(Inventory.sqsz.x + UI.scale(1), 0);
-                        shift.x+=1;
-                    }
-                    else
-                    {
-                        pos.x = UI.scale(8);
-                        pos = pos.add(0, Inventory.sqsz.y + UI.scale(1));
-                        shift.x = 0;
-                    }
+                    if(c.isect(slotAt(i), invsq.sz()))
+                        return (slots[i] != null) ? slots[i].name : null;
                 }
-                return true;
             }
+            for(int i = 0; i < data.size(); i++)
+            {
+                if(c.isect(optionAt(i), invsq.sz()))
+                    return data.get(i).name;
+            }
+            return null;
         }
     }
 }
