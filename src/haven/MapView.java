@@ -1534,7 +1534,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    lastccz = (float)z;
 	    return(Coord3f.of((float)cf.x, (float)cf.y, (float)z));
 	}
-	Gob pl = NUtils.player();
+	/* nurgling: this view's own player, never NUtils.player(). getcc() also runs on the shared
+	 * Loader thread (the placement ghost starts here), where NUtils resolves to the session on
+	 * screen: a background session's ghost then waited forever for ground it never loads. */
+	Gob pl = player();
 	if(pl != null) {
 	    Coord2d off = ccoff;
 	    Coord3f pc = pl.getrenderc();
