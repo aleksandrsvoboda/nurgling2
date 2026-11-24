@@ -334,6 +334,7 @@ public class BotRegistry {
         bots.add(new BotDescriptor("test8", BotDescriptor.BotType.TOOLS, "Test 8", "Debug test 8.", false, true, TESTpf.class, "test8", false));
         bots.add(new BotDescriptor("test9", BotDescriptor.BotType.TOOLS, "Test 9", "Debug test 9.", false, true, TESTAvalaible.class, "test9", false));
         bots.add(new BotDescriptor("test12", BotDescriptor.BotType.TOOLS, "Test 12", "Debug test 12.", false, true, TestBot.class, "test12", false));
+        bots.add(new BotDescriptor("lanternstand_probe", BotDescriptor.BotType.TOOLS, "Lanternstand Probe", "Logs overlays, sprite data and attributes of every lantern stand in view to lanternstand_probe.txt.", false, true, TESTLanternstandProbe.class, "test2", false));
         bots.add(new BotDescriptor("chunknav_navigator", BotDescriptor.BotType.TOOLS, "ChunkNav Navigator", "Opens UI to navigate to areas using chunk-based navigation.", false, true, ChunkNavNavigatorBot.class, "test14", false));
         bots.add(new BotDescriptor("navstresstest", BotDescriptor.BotType.TOOLS, "Navigation Stress Test", "Continuously tests chunk navigation between random areas. Results saved to JSON file.", false, true, NavigationStressTest.class, "test15", true));
         bots.add(new BotDescriptor("navareatest", BotDescriptor.BotType.TOOLS, "Area Navigation Test", "Walks between reachable areas in several orders, plus areas that cannot be reached, which must fail cleanly. Log saved under nav_test/.", false, true, AreaNavigationTest.class, "test15", false,
@@ -388,7 +389,7 @@ public class BotRegistry {
             largeFields.add("lf_" + id);
         group("large_fields", largeFields.toArray(new String[0]));
         group("tools", "chunknav_navigator", "test2", "collect_silkworm_eggs_by_quality");
-        group("developer", "test1", "test4", "test5", "test7", "test8", "test9", "test12", "navstresstest");
+        group("developer", "test1", "test4", "test5", "test7", "test8", "test9", "test12", "lanternstand_probe", "navstresstest");
     }
 
     private static void group(String key, String... ids) {
