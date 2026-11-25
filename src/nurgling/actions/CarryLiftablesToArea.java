@@ -46,6 +46,8 @@ public class CarryLiftablesToArea implements Action {
     private final String unreachableMsg;
     private final CartHauler hauler;
     private final boolean flush;
+    /** Objects that wouldn't lift (LiftObject gave up on them): left alone for the rest of this run. */
+    private final java.util.Set<Long> skipped = new java.util.HashSet<>();
     /** A parked cart further than this from the next object to load is brought over first (4 tiles). */
     private static final double BRING_RANGE = 44;
 
@@ -75,12 +77,12 @@ public class CarryLiftablesToArea implements Action {
 
     private Results runByHand(NGameUI gui) throws InterruptedException {
         ArrayList<Gob> items;
-        while (!(items = source.candidates()).isEmpty())
+        while (!(items = withoutSkipped(source.candidates())).isEmpty())
         {
             ArrayList<Gob> availableItems = new ArrayList<>();
             for (Gob currGob : items)
             {
-                if (PathFinder.isAvailable(currGob))
+                if (!skipped.contains(currGob.id) && PathFinder.isAvailable(currGob))
                     availableItems.add(currGob);
             }
             if (availableItems.isEmpty())
@@ -92,8 +94,12 @@ public class CarryLiftablesToArea implements Action {
             availableItems.sort(NUtils.d_comp);
             Gob item = availableItems.get(0);
 
-            // Lift the item
-            new LiftObject(item).run(gui);
+            // Lift the item; one that won't come up is left for good this run, and the next one is tried
+            if (!new LiftObject(item).run(gui).IsSuccess())
+            {
+                skipped.add(item.id);
+                continue;
+            }
 
             // Move to output area and place the item. FindPlaceAndAction walks
             // onto the area first (it has the NArea) so the whole zone is loaded
@@ -108,17 +114,27 @@ public class CarryLiftablesToArea implements Action {
         return Results.SUCCESS();
     }
 
+    private ArrayList<Gob> withoutSkipped(ArrayList<Gob> gobs) {
+        if (skipped.isEmpty())
+            return gobs;
+        ArrayList<Gob> res = new ArrayList<>();
+        for (Gob g : gobs)
+            if (!skipped.contains(g.id))
+                res.add(g);
+        return res;
+    }
+
     /** Null means "the cart is out of the picture now, carry the rest by hand". */
     private Results runWithCart(NGameUI gui) throws InterruptedException {
         while (true) {
             // Fill the cart.
             while (!hauler.isFull()) {
-                ArrayList<Gob> items = source.candidates();
+                ArrayList<Gob> items = withoutSkipped(source.candidates());
                 if (items.isEmpty())
                     break;
                 ArrayList<Gob> available = new ArrayList<>();
                 for (Gob g : items) {
-                    if (PathFinder.isAvailable(g))
+                    if (!skipped.contains(g.id) && PathFinder.isAvailable(g))
                         available.add(g);
                 }
                 if (available.isEmpty()) {
@@ -136,7 +152,12 @@ public class CarryLiftablesToArea implements Action {
                         return null;
                     }
                 }
-                if (!hauler.load(item)) {
+                CartHauler.Load res = hauler.load(item);
+                if (res == CartHauler.Load.LIFT_FAILED) {
+                    skipped.add(item.id);
+                    continue;
+                }
+                if (res != CartHauler.Load.LOADED) {
                     gui.msg(L10n.get("cart.load_failed"));
                     dropCart(gui);
                     return null;

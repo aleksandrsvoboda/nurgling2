@@ -158,21 +158,23 @@ public class CartHauler {
     }
 
     /**
-     * Lifts an object and puts it into the cart, which is parked first if it is still tied. False when
-     * nothing ended up in the cart; the character may then still be holding the object, which the caller
-     * carries by hand.
+     * Lifts an object and puts it into the cart, which is parked first if it is still tied. LIFT_FAILED: the
+     * object wouldn't come up (the caller moves on to another); FAILED: the cart is the problem, and the character
+     * may still be holding the object, which the caller carries by hand.
      */
-    public boolean load(Gob item) throws InterruptedException {
+    public Load load(Gob item) throws InterruptedException {
         if (isTied() && !park())
-            return false;
-        new LiftObject(item).run(gui);
-        if (Finder.findLiftedbyPlayer() == null)
-            return false;
+            return Load.FAILED;
+        if (!new LiftObject(item).run(gui).IsSuccess() || Finder.findLiftedbyPlayer() == null)
+            return Load.LIFT_FAILED;
         Gob c = cart();
         if (c == null)
-            return false;
-        return new LoadIntoCart(c).run(gui).IsSuccess();
+            return Load.FAILED;
+        return new LoadIntoCart(c).run(gui).IsSuccess() ? Load.LOADED : Load.FAILED;
     }
+
+    /** How a {@link #load} went: in the cart, the object couldn't be lifted (try another), or the cart is the problem. */
+    public enum Load { LOADED, LIFT_FAILED, FAILED }
 
     /**
      * Parks the cart and empties it into the area, placing each object on a free cell of the area's
