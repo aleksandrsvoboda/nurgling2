@@ -46,6 +46,9 @@ public class CartNavTest implements Action {
     private final boolean random;
     private final int minutes, maxHops;
     private final long seed;
+    private final boolean mounted;
+    /** When > 0: instead of walking legs, open this many of the nearest stockpiles. */
+    public int openPiles = 0;
 
     private int legs = 0, reached = 0, losses = 0;
     private volatile String currentLeg = "setup";
@@ -56,6 +59,11 @@ public class CartNavTest implements Action {
     }
 
     public CartNavTest(String from, String to, int laps, boolean random, int minutes, int maxHops, long seed) {
+        this(from, to, laps, random, minutes, maxHops, seed, false);
+    }
+
+    public CartNavTest(String from, String to, int laps, boolean random, int minutes, int maxHops, long seed, boolean mounted) {
+        this.mounted = mounted;
         this.from = from;
         this.to = to;
         this.laps = Math.max(1, laps);
@@ -71,10 +79,42 @@ public class CartNavTest implements Action {
         Object before = NConfig.get(NConfig.Key.allowCarts);
         NConfig.set(NConfig.Key.allowCarts, true);
         try {
+            if (openPiles > 0)
+                return openNearestPiles(gui);
             List<NArea> pool = random ? outdoorAreas(gui) : namedAreas();
             if (pool.size() < 2) {
                 log("need at least 2 areas, have " + pool.size());
                 return Results.ERROR("areas");
+            }
+            if (mounted) {
+                nurgling.actions.mount.HorseRide ride = nurgling.actions.mount.HorseRide.of(gui);
+                if (ride == null) {
+                    log("mounted test, but the character isn't riding a horse");
+                    return Results.ERROR("not mounted");
+                }
+                Gob horse = ride.horse(gui), me = NUtils.player();
+                log(String.format("riding %s %d: character at %s, horse at %s, offset %.2f, horse facing %.2f",
+                        horse.ngob.name, horse.id, fmt(me.rc), fmt(horse.rc), me.rc.dist(horse.rc), horse.a));
+                Random rnd = new Random(seed);
+                long end = System.currentTimeMillis() + minutes * 60_000L;
+                NArea last = null;
+                int index = 0;
+                while (random ? System.currentTimeMillis() < end : index < laps * 2) {
+                    NArea target;
+                    if (random) {
+                        do {
+                            target = pool.get(rnd.nextInt(pool.size()));
+                        } while (target == last);
+                    } else {
+                        target = pool.get(index % 2);
+                    }
+                    index++;
+                    last = target;
+                    if (!mountedLeg(gui, target))
+                        break;
+                }
+                log(String.format("done: %d/%d legs reached mounted", reached, legs));
+                return Results.SUCCESS();
             }
             Gob cart = nearestCart(gui);
             if (cart == null) {
@@ -117,6 +157,59 @@ public class CartNavTest implements Action {
             watchdog.interrupt();
             NConfig.set(NConfig.Key.allowCarts, Boolean.TRUE.equals(before));
         }
+    }
+
+    /**
+     * Walks up to and opens the {@code openPiles} nearest stockpiles in turn, the way TransferToPiles does
+     * (hard-mode PathFinder, then OpenTargetContainer), logging whether each opened and from how far.
+     */
+    private Results openNearestPiles(NGameUI gui) throws InterruptedException {
+        Gob me = NUtils.player();
+        List<Gob> piles = new ArrayList<>();
+        synchronized (gui.ui.sess.glob.oc) {
+            for (Gob g : gui.ui.sess.glob.oc)
+                if (g.ngob != null && g.ngob.name != null && g.ngob.name.startsWith("gfx/terobjs/stockpile") && g.rc.dist(me.rc) < 200)
+                    piles.add(g);
+        }
+        piles.sort((a, b) -> Double.compare(a.rc.dist(me.rc), b.rc.dist(me.rc)));
+        log("riding=" + (nurgling.actions.mount.HorseRide.of(gui) != null) + ", " + piles.size() + " piles within 200");
+        int opened = 0, tried = 0;
+        for (Gob pile : piles) {
+            if (tried >= openPiles)
+                break;
+            tried++;
+            currentLeg = "opening pile " + pile.id + " " + pile.ngob.name;
+            nurgling.actions.PathFinder pf = new nurgling.actions.PathFinder(pile);
+            pf.isHardMode = true;
+            pf.run(gui);
+            Gob p = NUtils.player();
+            boolean ok = new nurgling.actions.OpenTargetContainer("Stockpile", pile).run(gui).IsSuccess() && gui.getStockpile() != null;
+            log(String.format("pile %d %s at %s: %s, character %.1f from it", pile.id, pile.ngob.name, fmt(pile.rc),
+                    ok ? "OPENED" : "FAILED", NUtils.player().rc.dist(pile.rc)));
+            if (ok) {
+                opened++;
+                new nurgling.actions.CloseTargetContainer("Stockpile").run(gui);
+            }
+        }
+        log(String.format("done: opened %d/%d piles", opened, tried));
+        return Results.SUCCESS();
+    }
+
+    /** One leg on horseback; false ends the run (no longer mounted). */
+    private boolean mountedLeg(NGameUI gui, NArea target) throws InterruptedException {
+        legs++;
+        currentLeg = String.format("leg %d -> '%s' (%d)", legs, target.name, target.id);
+        log(currentLeg);
+        long t0 = System.currentTimeMillis();
+        boolean ok = NUtils.navigateToArea(target, true);
+        if (ok)
+            reached++;
+        nurgling.actions.mount.HorseRide ride = nurgling.actions.mount.HorseRide.of(gui);
+        Gob p = NUtils.player();
+        Gob h = (ride == null) ? null : ride.horse(gui);
+        log(String.format("leg %d %s in %.1fs, %s", legs, ok ? "reached" : "FAILED", (System.currentTimeMillis() - t0) / 1000.0,
+                h == null ? "NOT MOUNTED" : String.format("mounted, character-horse offset %.2f", p.rc.dist(h.rc))));
+        return ride != null;
     }
 
     /** One leg; false ends the run (the cart is gone). */
@@ -209,7 +302,8 @@ public class CartNavTest implements Action {
             while (!Thread.currentThread().isInterrupted()) {
                 Gob p = gui.map.player();
                 long now = System.currentTimeMillis();
-                if (p != null && (lastPos == null || p.rc.dist(lastPos) > 1)) {
+                // More than a wobble: a horse re-clicked in place shifts by about a unit each time.
+                if (p != null && (lastPos == null || p.rc.dist(lastPos) > 3)) {
                     lastPos = p.rc;
                     lastMove = now;
                 }

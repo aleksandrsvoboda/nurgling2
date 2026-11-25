@@ -83,7 +83,13 @@ public class PathFinder implements Action {
     // the character when carts are allowed; null whenever there is neither, and then none of the cart code below runs:
     // the walk is exactly what it always was.
     private nurgling.actions.cart.CartTow cartTow = null;
-    // How much cart clearance this run plans with: steps down when a level finds no path (see CartTow.dilate).
+    // Riding a horse (see nurgling.actions.mount.HorseRide), read at run() start; null on foot.
+    private nurgling.actions.mount.HorseRide horseRide = null;
+    // Riding: the placement ghost as given, while `dummy` is the grown one the approach is planned around.
+    private Gob horseDummyOriginal = null;
+    // Riding: the approach is planned around a grown ghost (of something being placed, or of the object walked to).
+    private boolean horseGrown = false;
+    // How much clearance (cart or horse) this run plans with: steps down when a level finds no path (see AgentClearance).
     private int cartLevel = 0;
     private int cartSnags = 0;
     private static final int MAX_CART_SNAGS = 3;
@@ -212,6 +218,28 @@ public class PathFinder implements Action {
         abortedByCaller = false;
         zoneReplanTimes.clear();
         stalls = 0;
+        horseRide = nurgling.actions.mount.HorseRide.of(gui);
+        // Riding to place something (the dummy is a ghost of it): plan the approach around the ghost grown by the
+        // horse's extra length, so the horse stops with its body clear of the spot whichever way it faces.
+        if (horseRide != null && dummy != null && !horseGrown && dummy.ngob != null && dummy.ngob.hitBox != null) {
+            horseDummyOriginal = dummy;
+            horseGrown = true;
+            NHitBox hb = dummy.ngob.hitBox;
+            double grow = nurgling.actions.mount.HorseRide.HALF_LENGTH - nurgling.pf.AgentClearance.BARE_HALF_WIDTH;
+            dummy = NGob.getDummy(dummy.rc, dummy.a, new NHitBox(hb.begin.sub(grow, grow), hb.end.add(grow, grow)));
+        }
+        // Riding up to an object to use it: stop a little further off than on foot (HorseRide.APPROACH_GAP) and let the
+        // click bring the horse in - a horse pressed right against a stockpile can't open it. Planned around the object
+        // grown by that gap.
+        if (horseRide != null && dummy == null && !horseGrown && target_id >= 0) {
+            Gob t = Finder.findGob(target_id);
+            if (t != null && t.ngob != null && t.ngob.hitBox != null) {
+                horseGrown = true;
+                NHitBox hb = t.ngob.hitBox;
+                double grow = nurgling.actions.mount.HorseRide.APPROACH_GAP;
+                dummy = NGob.getDummy(t.rc, t.a, new NHitBox(hb.begin.sub(grow, grow), hb.end.add(grow, grow)));
+            }
+        }
         cartTow = nurgling.actions.cart.CartTow.of(gui);
         if (cartTow == null)
             cartTow = nurgling.actions.cart.CartTow.detect(gui);
@@ -224,12 +252,12 @@ public class PathFinder implements Action {
             if (aborted()) {
                 return abortWalk(gui);
             }
-            // Towing: re-planning again and again without the character getting anywhere is a loop, not a walk.
-            if (cartTow != null) {
+            // Towing or riding: re-planning again and again without the character getting anywhere is a loop, not a walk.
+            if (cartTow != null || horseRide != null) {
                 Gob me = gui.map.player();
                 if (me != null && cartLastStart != null && me.rc.dist(cartLastStart) < 1) {
                     if (++cartNoProgress > MAX_CART_NO_PROGRESS) {
-                        System.out.println("[Cart] " + cartNoProgress + " re-plans from " + fmt(me.rc) + " without moving - giving up");
+                        System.out.println(agentTag() + " " + cartNoProgress + " re-plans from " + fmt(me.rc) + " without moving - giving up");
                         return Results.ERROR("Cart walk made no progress");
                     }
                 } else {
@@ -278,12 +306,37 @@ public class PathFinder implements Action {
                         cartSnag = cartTow.snagWatcher(gui, cartSnags < MAX_CART_SNAGS);
                         stepAbort = both(stepAbort, cartSnag);
                     }
+                    nurgling.actions.mount.StepStuckWatch horseStuck = null;
+                    if (horseRide != null && cartTow == null) {
+                        horseStuck = new nurgling.actions.mount.StepStuckWatch(gui);
+                        stepAbort = both(stepAbort, horseStuck);
+                    }
                     GoTo go = (stepAbort != null) ? new GoTo(targetCoord, stepAbort) : new GoTo(targetCoord);
                     step++;
                     if (!go.run(gui).IsSuccess()) {
                         // Asked to stop (paused/cancelled): halt here instead of re-planning and walking on.
                         if (aborted()) {
                             return abortWalk(gui);
+                        }
+                        // Riding: the horse's body can't always put the rider on the exact point (next to a wall or a
+                        // chest). Within its half-length counts as there; otherwise say where it stopped, and re-plan.
+                        if (horseRide != null) {
+                            Gob me = gui.map.player();
+                            boolean stuck = horseStuck != null && horseStuck.stuck();
+                            if (me != null && (!go.aborted() || stuck) && me.rc.dist(targetCoord) <= nurgling.actions.mount.HorseRide.REACH)
+                                continue;
+                            if (stuck) {
+                                if (++cartStuck > MAX_CART_STUCK)
+                                    return Results.ERROR("Horse won't move");
+                                stopHere(gui);
+                                this.begin = me != null ? me.rc : this.begin;
+                                needRestart = true;
+                                System.out.println("[Horse] standing still on a step to " + fmt(targetCoord) + ", re-planning");
+                                break;
+                            }
+                            System.out.println("[Horse] step to " + fmt(targetCoord) + " stopped "
+                                    + (me != null ? String.format("%.1f", me.rc.dist(targetCoord)) : "?") + " short at "
+                                    + (me != null ? fmt(me.rc) : "?"));
                         }
                         // Towing: the hauler's cart came off, or a cart is about to (stop before the rope breaks, re-plan around it).
                         if (cartTow != null) {
@@ -349,12 +402,20 @@ public class PathFinder implements Action {
 //                    if(start_pos == end_poses.get(0) && NUtils.player().rc.dist(Utils.pfGridToWorld(pfmap.cells[start_pos]))
                     return Results.SUCCESS();
                 }
-                // Towing: no path with this much cart clearance - plan again with less (the last level is a bare character).
-                if (cartTow != null && cartLevel < nurgling.actions.cart.CartTow.CLEARANCE_LEVELS - 1) {
+                // Towing or riding: no path with this much clearance - plan again with less (the last level is a bare character).
+                if ((cartTow != null || horseRide != null) && cartLevel < nurgling.pf.AgentClearance.LEVELS - 1) {
                     cartLevel++;
                     pfmap = null;
-                    System.out.println("[Cart] no path at clearance level " + (cartLevel - 1) + " " + fmt(begin) + " -> " + fmt(end)
+                    System.out.println(agentTag() + " no path at clearance level " + (cartLevel - 1) + " " + fmt(begin) + " -> " + fmt(end)
                             + ", trying level " + cartLevel);
+                    continue;
+                }
+                // Riding: no way to stand clear of the spot - approach it as on foot instead (no ghost for an object).
+                if (horseGrown && dummy != horseDummyOriginal) {
+                    dummy = horseDummyOriginal;
+                    cartLevel = 0;
+                    pfmap = null;
+                    System.out.println("[Horse] no room to stand clear of the spot at " + fmt(end) + ", approaching it as on foot");
                     continue;
                 }
                 if (!plannedZones.isEmpty() && pathExistsWithoutZones())
@@ -383,6 +444,11 @@ public class PathFinder implements Action {
 
             }
         }
+    }
+
+    /** Log tag for the agent this walk plans for: a towed cart or a ridden horse. */
+    private String agentTag() {
+        return (cartTow != null) ? "[Cart]" : "[Horse]";
     }
 
     /** Hauler tow only: the tow bit cleared mid-walk. Stop rather than walk on alone; the hauler goes back for the cart. */
@@ -634,6 +700,8 @@ public class PathFinder implements Action {
             // Towing: grow obstacles by the cart's extra clearance (after the approach cells are marked, so they stay).
             if (cartTow != null)
                 cartTow.dilate(pfmap, start_pos, end_pos, cartLevel);
+            else if (horseRide != null)
+                horseRide.dilate(pfmap, start_pos, end_pos, cartLevel);
 
             if (dca != null)
                 pfmap.setCellArray(dca);

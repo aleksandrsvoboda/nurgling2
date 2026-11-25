@@ -1494,9 +1494,11 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                         }
 
                         if (scenario == null && botSettings.cartTest) {
-                            new nurgling.diagnostics.CartNavTest(botSettings.cartTestFrom, botSettings.cartTestTo, botSettings.cartTestLaps,
-                                    botSettings.cartTestRandom, botSettings.cartTestMinutes, botSettings.cartTestMaxHops,
-                                    botSettings.cartTestSeed).run(boundGui);
+                            nurgling.diagnostics.CartNavTest cartTest = new nurgling.diagnostics.CartNavTest(botSettings.cartTestFrom,
+                                    botSettings.cartTestTo, botSettings.cartTestLaps, botSettings.cartTestRandom, botSettings.cartTestMinutes,
+                                    botSettings.cartTestMaxHops, botSettings.cartTestSeed, botSettings.cartTestMounted);
+                            cartTest.openPiles = botSettings.cartTestOpenPiles;
+                            cartTest.run(boundGui);
                             if (botSettings.cartTestStayOpen) {
                                 System.out.println("[CartTest] staying logged in (stayOpen)");
                                 return;

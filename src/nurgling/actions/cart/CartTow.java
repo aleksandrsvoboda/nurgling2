@@ -362,78 +362,14 @@ public final class CartTow {
     }
 
     /** How many clearance levels a walk can step down through before it plans as a bare character. */
-    public static final int CLEARANCE_LEVELS = 3;
+    public static final int CLEARANCE_LEVELS = nurgling.pf.AgentClearance.LEVELS;
 
     /**
-     * Grows every blocked cell by {@link #dilationCells()} into free cells, as far as {@code level} allows:
-     * <ol start="0">
-     *   <li>everywhere but the start and its 8 neighbours;</li>
-     *   <li>also not within {@link #ROOMY_EXEMPT} cells of the start or the goal - the cramped spots a walk
-     *       begins or ends in (stepping off a ladder, a cart parked against a wall) without giving up the
-     *       clearance along the way, which is where the cart catches on things;</li>
-     *   <li>no growth at all.</li>
-     * </ol>
-     * Approach cells (not free) and our own cart are never grown: the cart is part of the moving agent,
-     * growing it would wall the character in. Remembered snag spots are blocked at every level. Grown
-     * cells get value 3, which reads as blocked to the graph search and to the corridor check alike.
+     * Room for the cart on the walk's pf map, at this clearance level (see {@link nurgling.pf.AgentClearance}).
+     * Our own cart is part of the moving agent and is never grown from; remembered snag spots are kept out of.
      */
     public void dilate(NPFMap map, Coord start, Coord goal, int level) {
-        int size = map.getSize();
-        NPFMap.Cell[][] cells = map.getCells();
-        int startExempt = (level == 0) ? 1 : ROOMY_EXEMPT;
-        int goalExempt = (level == 0) ? -1 : ROOMY_EXEMPT;
-
-        if (level < 2) {
-            int r = dilationCells();
-            boolean[][] seed = new boolean[size][size];
-            for (int i = 0; i < size; i++)
-                for (int j = 0; j < size; j++)
-                    seed[i][j] = (cells[i][j].val == 1 || cells[i][j].val == 2) && !isOwnCart(cells[i][j]);
-
-            for (int i = 0; i < size; i++) {
-                for (int j = 0; j < size; j++) {
-                    if (!seed[i][j])
-                        continue;
-                    for (int di = -r; di <= r; di++) {
-                        for (int dj = -r; dj <= r; dj++) {
-                            block(cells, size, start, startExempt, goal, goalExempt, i + di, j + dj);
-                        }
-                    }
-                }
-            }
-        }
-
-        synchronized (snagSpots) {
-            if (!snagSpots.isEmpty()) {
-                for (int i = 0; i < size; i++) {
-                    for (int j = 0; j < size; j++) {
-                        Coord2d w = Utils.pfGridToWorld(cells[i][j].pos);
-                        for (Coord2d spot : snagSpots) {
-                            if (w.dist(spot) < SNAG_BLOCK_R) {
-                                block(cells, size, start, 1, null, -1, i, j);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /** Cells around the start and goal left ungrown at level 1: about a cart's length. */
-    private static final int ROOMY_EXEMPT = 3;
-
-    private static void block(NPFMap.Cell[][] cells, int size, Coord start, int startExempt, Coord goal, int goalExempt,
-                              int i, int j) {
-        if (i < 0 || j < 0 || i >= size || j >= size)
-            return;
-        if (cells[i][j].val != 0)
-            return;
-        if (start != null && Math.abs(i - start.x) <= startExempt && Math.abs(j - start.y) <= startExempt)
-            return;
-        if (goal != null && goalExempt >= 0 && Math.abs(i - goal.x) <= goalExempt && Math.abs(j - goal.y) <= goalExempt)
-            return;
-        cells[i][j].val = 3;
+        nurgling.pf.AgentClearance.dilate(map, start, goal, level, dilationCells(), this::isOwnCart, snagSpots, SNAG_BLOCK_R);
     }
 
     private boolean isOwnCart(NPFMap.Cell cell) {

@@ -587,9 +587,13 @@ public class Finder
                 chekerOfArea.c[2].sub(chekerOfArea.c[0]).y < temporalGobBox.getCircumscribedBR().sub(temporalGobBox.getCircumscribedUL()).y )
             return null;
 
+        // Riding: the horse moves with the character, like the player it is not in the way (-1 on foot).
+        long ridden = nurgling.actions.mount.HorseRide.riddenId(NUtils.getGameUI());
         synchronized ( NUtils.getGameUI().ui.sess.glob.oc ) {
             for ( Gob gob : NUtils.getGameUI().ui.sess.glob.oc ) {
                 if (!(gob instanceof OCache.Virtual || gob.attr.isEmpty() || gob.getClass().getName().contains("GlobEffector"))) {
+                    if (gob.id == ridden)
+                        continue;
                     // Skip ghost gobs from preview (they have GhostAlpha)
                     if (gob.getattr(GhostAlpha.class) != null) {
                         continue;

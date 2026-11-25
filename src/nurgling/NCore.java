@@ -251,9 +251,9 @@ public class NCore extends Widget
         public Integer scenarioId;
         public String stackTraceFile; // Path to stack trace file for autorunner debugging
         // Without a scenario: tow the nearest cart between areas, then log out. See CartNavTest.
-        public boolean cartTest, cartTestRandom, cartTestStayOpen;
+        public boolean cartTest, cartTestRandom, cartTestStayOpen, cartTestMounted;
         public String cartTestFrom, cartTestTo;
-        public int cartTestLaps, cartTestMinutes, cartTestMaxHops;
+        public int cartTestLaps, cartTestMinutes, cartTestMaxHops, cartTestOpenPiles;
         public long cartTestSeed;
 
         public BotmodSettings(String user, String password, String character, Integer scenarioId) {

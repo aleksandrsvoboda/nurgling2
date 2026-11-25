@@ -70,7 +70,9 @@ public class TransferToPiles implements Action{
                             }
                             witems = getMatchingItems(gui);
                             int size = witems.size();
-                            new OpenTargetContainer("Stockpile", target).run(gui);
+                            // Only fails on horseback (OpenTargetContainer.openMounted): skip a pile it can't reach.
+                            if (!new OpenTargetContainer("Stockpile", target).run(gui).IsSuccess())
+                                break;
                             int target_size = Math.min(size,gui.getStockpile().getFreeSpace());
                             if(target_size>0) {
                                 transfer(gui, target_size);
@@ -97,7 +99,9 @@ public class TransferToPiles implements Action{
                     while (pile.ngob.getModelAttribute() != 31) {
                         witems = getMatchingItems(gui);
                         int size = witems.size();
-                        new OpenTargetContainer("Stockpile", pile).run(gui);
+                        // Only fails on horseback (OpenTargetContainer.openMounted): leave this pile, make another.
+                        if (!new OpenTargetContainer("Stockpile", pile).run(gui).IsSuccess())
+                            break;
                         int target_size = Math.min(size, gui.getStockpile().getFreeSpace());
                         if (target_size > 0) {
                             transfer(gui, target_size);

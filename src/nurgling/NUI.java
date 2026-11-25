@@ -99,6 +99,14 @@ public class NUI extends UI
      * @param sz    The size of the UI.
      * @param fun   The runner function for the UI.
      */
+    /** Riding a horse: also put game error messages in the log, next to the [Horse] walk lines. */
+    @Override
+    public void error(String msg) {
+        super.error(msg);
+        if (gui instanceof NGameUI && nurgling.actions.mount.HorseRide.of((NGameUI) gui) != null)
+            System.out.println("[Horse] game said: " + msg);
+    }
+
     public NUI(Windeye wnd, Audio.Root audio, Coord sz, Runner fun)
     {
         super(wnd, audio, sz, fun);

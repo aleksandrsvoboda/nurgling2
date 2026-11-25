@@ -12,6 +12,106 @@ public class OpenTargetContainer implements Action
     @Override
     public Results run(NGameUI gui) throws InterruptedException
     {
+        // Riding: the horse's long body can fail to get the rider in reach (small piles packed in rows), and then no
+        // window ever comes. Give the open a time limit, walk up once more, and report failure instead of waiting forever.
+        if (nurgling.actions.mount.HorseRide.of(gui) != null && ("Stockpile".equals(name) || isPlainInventory(name)))
+            return openMounted(gui);
+        return openOnFoot(gui);
+    }
+
+    private static final long MOUNTED_OPEN_MS = 3000;
+
+    private static boolean isPlainInventory(String name)
+    {
+        switch (name)
+        {
+            case "Barter Stand": case "Barrel": case "Cauldron":
+            case "Study Desk": case "Fine Study Desk": case "Grand Study Desk":
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    private Results openMounted(NGameUI gui) throws InterruptedException
+    {
+        // On horseback the click walks the horse in, unless it is already pressed against the object (then nothing
+        // opens, by hand either): click, and if no window comes, back off a few units and click once more.
+        for (int attempt = 0; attempt <= 1; attempt++)
+        {
+            if (attempt > 0 && !backOff(gui))
+                break;
+            if (tryOpen(gui))
+            {
+                Gob me = gui.map.player();
+                System.out.println(String.format("[Horse] opened %s %d from %.1f%s", name, gob.id,
+                        me != null ? me.rc.dist(gob.rc) : -1.0, attempt > 0 ? " (after backing off)" : ""));
+                if (cont != null)
+                    cont.update();
+                return Results.SUCCESS();
+            }
+            Gob me = gui.map.player();
+            System.out.println(String.format("[Horse] couldn't open %s %d (%s) from %.1f%s", name, gob.id,
+                    gob.ngob != null ? gob.ngob.name : "?", me != null ? me.rc.dist(gob.rc) : -1.0,
+                    attempt > 0 ? " (after backing off)" : ""));
+        }
+        return Results.FAIL();
+    }
+
+    /** Steps straight away from the object by HorseRide.APPROACH_GAP plus a little; false when there is no room. */
+    private boolean backOff(NGameUI gui) throws InterruptedException
+    {
+        Gob me = gui.map.player();
+        if (me == null)
+            return false;
+        Coord2d away = me.rc.sub(gob.rc);
+        if (away.abs() < 0.01)
+            return false;
+        Coord2d to = me.rc.add(away.norm(nurgling.actions.mount.HorseRide.APPROACH_GAP + 2));
+        if (!PathFinder.isAvailable(to))
+            return false;
+        new GoTo(to, new nurgling.actions.mount.StepStuckWatch(gui)).run(gui);
+        return true;
+    }
+
+    /** One click and a time-limited wait for the window; true when it opened. */
+    private boolean tryOpen(NGameUI gui) throws InterruptedException
+    {
+        Window already = gui.getWindow(name);
+        if (already != null && !isOwnedBy(gui, already, gob))
+        {
+            already.wdgmsg("close");
+            gui.ui.core.addTask(new WindowIsClosed(already));
+            already = null;
+        }
+        if (already == null)
+        {
+            gui.ui.core.setLastAction(gob);
+            gui.map.wdgmsg("click", Coord.z, gob.rc.floor(posres), 3, 0, 0, (int) gob.id, gob.rc.floor(posres), 0, -1);
+        }
+        final NTask inner = "Stockpile".equals(name) ? new FindNISBox(name, gob) : new FindNInventory(name);
+        final long deadline = System.currentTimeMillis() + MOUNTED_OPEN_MS;
+        final boolean[] timedOut = {false};
+        gui.ui.core.addTask(new NTask()
+        {
+            @Override
+            public boolean check()
+            {
+                if (inner.check())
+                    return true;
+                if (System.currentTimeMillis() > deadline)
+                {
+                    timedOut[0] = true;
+                    return true;
+                }
+                return false;
+            }
+        });
+        return !timedOut[0];
+    }
+
+    private Results openOnFoot(NGameUI gui) throws InterruptedException
+    {
         Window already = NUtils.getGameUI().getWindow(name);
         if(already != null && !isOwnedBy(gui, already, gob))
         {
