@@ -146,6 +146,10 @@ public class Charlist extends Widget {
 	}
     }
 
+    /* Nurgling: gfx/borka/idle is split into parts (legs, torso, head, rarm, larm, cape = ids 0-5);
+     * the pose data is a bitmask of the parts to play, so 0x3f plays the whole body. */
+    private static final Collection<ResData> IDLE = Collections.singletonList(new ResData(Resource.remote().load("gfx/borka/idle"), new MessageBuf(new byte[] {0x3f})));
+
     public class Boxlist extends SListBox<Char, Charbox> {
 	public Boxlist(int h) {
 	    this(Coord.of(bsz.x, ((bsz.y + margin) * h) - margin), bsz.y, margin);
@@ -168,7 +172,8 @@ public class Charlist extends Widget {
 	    display(chr);
 	    if((avalink != null) && (chr.avadesc != null)) {
 		avalink.pop(chr.avadesc.clone(), chr.avamap);
-		avalink.chposes(chr.avaposes, false);
+		/* Nurgling: the server sends the pose the character logged out in; always stand idle instead. */
+		avalink.chposes(IDLE, false);
 	    }
 	}
     }
