@@ -334,6 +334,32 @@ public class NUtils
         }
     }
 
+    /**
+     * Like {@link #lift}, but gives up after {@code timeoutMs} instead of waiting forever for the object to come up,
+     * and then cancels the lift cursor. True when the object is in the character's hands.
+     */
+    public static boolean tryLift(Gob gob, long timeoutMs) throws InterruptedException {
+        getGameUI().ui.rcvr.rcvmsg(getUI().getMenuGridId(), "act", "carry");
+        getGameUI().map.wdgmsg("click", Coord.z, gob.rc.floor(posres), 1, 0, 0, (int) gob.id, gob.rc.floor(posres),
+                0, -1);
+        final WaitLifted lifted = new WaitLifted(gob);
+        final long deadline = System.currentTimeMillis() + timeoutMs;
+        final boolean[] ok = {false};
+        getUI().core.addTask(new nurgling.tasks.NTask() {
+            @Override
+            public boolean check() {
+                if (lifted.check()) {
+                    ok[0] = true;
+                    return true;
+                }
+                return System.currentTimeMillis() > deadline;
+            }
+        });
+        if (!ok[0] && player() != null)
+            getGameUI().map.wdgmsg("click", Coord.z, player().rc.floor(posres), 3, 0);
+        return ok[0];
+    }
+
     public static void lift(
             Gob gob
     )
