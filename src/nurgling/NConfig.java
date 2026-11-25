@@ -2039,6 +2039,8 @@ public class NConfig
                 botmod.cartTestStayOpen = ct.optBoolean("stayOpen", false);
                 botmod.cartTestMounted = ct.optBoolean("mounted", false);
                 botmod.cartTestOpenPiles = ct.optInt("openPiles", 0);
+                botmod.cartTestHouseTrip = ct.optBoolean("houseTrip", false);
+                botmod.cartTestDumpPortals = ct.optBoolean("dumpPortals", false);
             }
 
             // Set stack trace file if provided (for autorunner debugging)

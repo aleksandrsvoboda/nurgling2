@@ -1498,6 +1498,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
                                     botSettings.cartTestTo, botSettings.cartTestLaps, botSettings.cartTestRandom, botSettings.cartTestMinutes,
                                     botSettings.cartTestMaxHops, botSettings.cartTestSeed, botSettings.cartTestMounted);
                             cartTest.openPiles = botSettings.cartTestOpenPiles;
+                            cartTest.houseTrip = botSettings.cartTestHouseTrip;
+                            cartTest.dumpPortals = botSettings.cartTestDumpPortals;
                             cartTest.run(boundGui);
                             if (botSettings.cartTestStayOpen) {
                                 System.out.println("[CartTest] staying logged in (stayOpen)");

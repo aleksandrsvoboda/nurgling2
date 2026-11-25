@@ -494,7 +494,14 @@ public class ChunkNavExecutor implements Action {
                                    portalName.contains("caveout") ||
                                    portalName.contains("-door");
 
-        if (isLoadingPortal) {
+        if (nurgling.actions.mount.HorseRide.of(gui) != null && nurgling.actions.mount.HorseDoor.isDoor(portalGob)) {
+            // Riding through a building door: line up against the wall beside it, click, retry if it didn't take.
+            if (!nurgling.actions.mount.HorseDoor.goThrough(gui, portalGob, isLoadingPortal, () -> {
+                long g = graph.getPlayerChunkId();
+                return g != -1 && g != playerGridBefore;
+            }))
+                return Results.FAIL();
+        } else if (isLoadingPortal) {
             // Cellar doors, stairs, ladders, mines - use simple right-click to enter
             NUtils.rclickGob(portalGob);
         } else {
@@ -1178,7 +1185,17 @@ public class ChunkNavExecutor implements Action {
         }
 
         // Portal recording is handled automatically by PortalTraversalTracker via getLastActions()
-        NUtils.openDoorOnAGob(gui, portalGob);
+        if (nurgling.actions.mount.HorseRide.of(gui) != null && nurgling.actions.mount.HorseDoor.isDoor(portalGob)) {
+            // Riding through a building door: line up against the wall beside it, click, retry if it didn't take.
+            long gridBefore = graph.getPlayerChunkId();
+            if (!nurgling.actions.mount.HorseDoor.goThrough(gui, portalGob, false, () -> {
+                long g = graph.getPlayerChunkId();
+                return g != -1 && g != gridBefore;
+            }))
+                return Results.FAIL();
+        } else {
+            NUtils.openDoorOnAGob(gui, portalGob);
+        }
 
         if (isLoadingPortal(portal.type)) {
             String exitGobName = GateDetector.getDoorPair(portal.gobName);
