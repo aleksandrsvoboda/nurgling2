@@ -81,6 +81,16 @@ public class FindPlaceAndAction implements Action {
         this.spread = spread;
     }
 
+    /** A raw rectangle with a spread: places without navigating (the cart unloader is already standing there). */
+    public FindPlaceAndAction(
+            Gob gob,
+            Pair<Coord2d, Coord2d> rcArea,
+            int spread)
+    {
+        this(gob, rcArea);
+        this.spread = spread;
+    }
+
     public Gob getPlaced() {
         return placed;
     }

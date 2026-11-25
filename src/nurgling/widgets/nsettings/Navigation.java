@@ -17,6 +17,7 @@ public class Navigation extends Panel {
 
         // Navigation settings
         boolean useGlobalPf;
+        boolean allowCarts;
         boolean waypointRetryOnStuck;
         boolean holdToMove;
         boolean showPathLine;
@@ -43,6 +44,7 @@ public class Navigation extends Panel {
     
     // Navigation checkboxes
     private CheckBox useGlobalPf;
+    private CheckBox allowCarts;
     private CheckBox waypointRetryOnStuck;
     private CheckBox holdToMove;
     private CheckBox showPathLine;
@@ -113,6 +115,14 @@ public class Navigation extends Panel {
             }
         }, prev.pos("bl").adds(0, 5));
         
+        prev = allowCarts = content.add(new CheckBox(L10n.get("nav.allow_carts")) {
+            public void set(boolean val) {
+                tempSettings.allowCarts = val;
+                a = val;
+            }
+        }, prev.pos("bl").adds(0, 5));
+        allowCarts.settip(L10n.get("nav.allow_carts_tip"));
+
         prev = waypointRetryOnStuck = content.add(new CheckBox(L10n.get("nav.retry_waypoint")) {
             public void set(boolean val) {
                 tempSettings.waypointRetryOnStuck = val;
@@ -228,6 +238,7 @@ public class Navigation extends Panel {
         
         // Load navigation settings
         tempSettings.useGlobalPf = (Boolean) NConfig.get(NConfig.Key.useGlobalPf);
+        tempSettings.allowCarts = Boolean.TRUE.equals(NConfig.get(NConfig.Key.allowCarts));
         tempSettings.waypointRetryOnStuck = (Boolean) NConfig.get(NConfig.Key.waypointRetryOnStuck);
         Object holdToMoveObj = NConfig.get(NConfig.Key.holdToMove);
         tempSettings.holdToMove = (holdToMoveObj instanceof Boolean) && (Boolean) holdToMoveObj;
@@ -254,6 +265,7 @@ public class Navigation extends Panel {
         autoLogoutOnUnknown.a = tempSettings.autoLogoutOnUnknown;
         alarmDelayFramesEntry.settext(String.valueOf(((Number) NConfig.get(NConfig.Key.alarmDelayFrames)).intValue()));
         useGlobalPf.a = tempSettings.useGlobalPf;
+        allowCarts.a = tempSettings.allowCarts;
         waypointRetryOnStuck.a = tempSettings.waypointRetryOnStuck;
         holdToMove.a = tempSettings.holdToMove;
         showPathLine.a = tempSettings.showPathLine;
@@ -297,6 +309,7 @@ public class Navigation extends Panel {
         
         // Save navigation settings
         NConfig.set(NConfig.Key.useGlobalPf, tempSettings.useGlobalPf);
+        NConfig.set(NConfig.Key.allowCarts, tempSettings.allowCarts);
         NConfig.set(NConfig.Key.waypointRetryOnStuck, tempSettings.waypointRetryOnStuck);
         NConfig.set(NConfig.Key.holdToMove, tempSettings.holdToMove);
         NConfig.set(NConfig.Key.showPathLine, tempSettings.showPathLine);

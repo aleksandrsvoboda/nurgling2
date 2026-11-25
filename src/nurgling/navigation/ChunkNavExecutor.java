@@ -474,6 +474,8 @@ public class ChunkNavExecutor implements Action {
     }
 
     private Results traversePortalGob(NGameUI gui, Gob portalGob, long targetGridId) throws InterruptedException {
+        // Towing a cart (automatic tow): the one to tie again if it comes off landing on the other side.
+        long towedCart = nurgling.actions.cart.CartTow.cartBeforePortal(gui);
         String portalName = portalGob.ngob != null ? portalGob.ngob.name : "unknown";
 
         // Get player grid BEFORE portal (save grid ID now - gob.rc is live/mutable)
@@ -512,6 +514,7 @@ public class ChunkNavExecutor implements Action {
             return Results.FAIL();
         }
 
+        nurgling.actions.cart.CartTow.reattachAfterPortal(gui, towedCart);
         return Results.SUCCESS();
     }
 
@@ -710,6 +713,9 @@ public class ChunkNavExecutor implements Action {
         // Navigate through tile-level waypoints instead of just jumping to the end
         double tileSize = MCache.tilesz.x;
         int waypointInterval = 20;
+        // Towing a cart: short hops, so each local walk keeps to the room-scored tile route instead of cutting through a gap.
+        if (nurgling.actions.cart.CartTow.planningWithCart())
+            waypointInterval = 4;
         int currentStepIndex = 0;
 
         while (currentStepIndex < segment.steps.size()) {
@@ -1138,6 +1144,8 @@ public class ChunkNavExecutor implements Action {
     }
 
     private Results traversePortal(ChunkPortal portal, long gridId, long targetGridId, NGameUI gui) throws InterruptedException {
+        // Towing a cart (automatic tow): the one to tie again if it comes off landing on the other side.
+        long towedCart = nurgling.actions.cart.CartTow.cartBeforePortal(gui);
         Coord2d accessPoint = getPortalAccessPoint(portal, gridId, gui);
         if (accessPoint != null) {
             walkTowardTarget(accessPoint, gui, WalkConfig.DEFAULT);
@@ -1187,6 +1195,7 @@ public class ChunkNavExecutor implements Action {
             NUtils.getUI().core.addTask(new WaitGobModelAttrChange(portalGob, portalGob.ngob.getModelAttribute()));
         }
 
+        nurgling.actions.cart.CartTow.reattachAfterPortal(gui, towedCart);
         return Results.SUCCESS();
     }
 
