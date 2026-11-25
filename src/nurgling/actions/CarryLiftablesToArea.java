@@ -33,8 +33,11 @@ public class CarryLiftablesToArea implements Action {
         /** The objects still to move; re-read every pick. */
         ArrayList<Gob> candidates() throws InterruptedException;
 
-        /** Gets back to the source after a delivery. */
+        /** Gets back to the source after a delivery (carrying by hand). */
         void goBack() throws InterruptedException;
+
+        /** The source area: a cart is towed all the way into it, so its objects are in view again. */
+        NArea area();
     }
 
     private final Source source;
@@ -160,12 +163,12 @@ public class CarryLiftablesToArea implements Action {
             if (exhausted)
                 break;
 
-            // Back for the next load.
-            if (!hauler.ensureTied()) {
-                gui.msg(L10n.get("cart.tie_failed"));
+            // Back for the next load, all the way into the source area: from the output area its objects can be
+            // out of view, and an empty candidate list would read as "nothing left" and end the run after one trip.
+            if (hauler.towTo(source.area()) != CartHauler.Outcome.OK) {
+                gui.msg(L10n.get(hauler.gaveUp() ? "cart.gave_up" : "cart.tie_failed"));
                 return null;
             }
-            source.goBack();
         }
 
         if (flush)

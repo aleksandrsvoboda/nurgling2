@@ -993,6 +993,11 @@ public class NContext {
         return Finder.findGob(id);
     }
 
+    /** An area this context knows by id (one it created or resolved), or null. */
+    public NArea getAreaById(String areaId) {
+        return areas.get(areaId);
+    }
+
     public void navigateToAreaIfNeeded(String areaId) throws InterruptedException {
         NArea area = areas.get(areaId);
         if(area == null) {

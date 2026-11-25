@@ -208,6 +208,11 @@ public class Chopper implements Action {
             public void goBack() throws InterruptedException {
                 context.navigateToAreaIfNeeded(sourceAreaId);
             }
+
+            @Override
+            public NArea area() {
+                return context.getAreaById(sourceAreaId);
+            }
         };
         return new CarryLiftablesToArea(logs, targetArea, 0,
                 "Can't reach any logs in chopping area, skipping carry.", hauler, flush).run(gui);

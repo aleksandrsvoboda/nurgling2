@@ -86,6 +86,11 @@ public class TransferLiftable implements Action
             public void goBack() throws InterruptedException {
                 NUtils.navigateToArea(source);
             }
+
+            @Override
+            public NArea area() {
+                return source;
+            }
         };
         String unreachable = "Can't reach any " + prop.object + " in current area, skipping...";
 
