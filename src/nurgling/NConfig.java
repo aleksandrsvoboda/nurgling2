@@ -2037,6 +2037,10 @@ public class NConfig
                 botmod.cartTestMaxHops = ct.optInt("maxHops", 4);
                 botmod.cartTestSeed = ct.optLong("seed", 1);
                 botmod.cartTestStayOpen = ct.optBoolean("stayOpen", false);
+                botmod.cartTestMounted = ct.optBoolean("mounted", false);
+                botmod.cartTestOpenPiles = ct.optInt("openPiles", 0);
+                botmod.cartTestHouseTrip = ct.optBoolean("houseTrip", false);
+                botmod.cartTestDumpPortals = ct.optBoolean("dumpPortals", false);
             }
 
             // Set stack trace file if provided (for autorunner debugging)

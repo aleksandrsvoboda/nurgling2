@@ -401,6 +401,8 @@ public class ChunkNavRecorder {
                 glob = gui.ui.sess.glob;
             }
             long playerId = NUtils.player() != null ? NUtils.player().id : -1;
+            // The horse being ridden moves with the character: like the player, it is not an obstacle (-1 on foot).
+            long riddenId = nurgling.actions.mount.HorseRide.riddenId(NUtils.getGameUI());
 
             // Grid bounds in world coordinates
             Coord2d gridWorldUL = grid.ul.mul(MCache.tilesz);
@@ -423,8 +425,8 @@ public class ChunkNavRecorder {
                 if (snap.hitBox == null) continue;
                 if (snap.isFollowing) continue;
 
-                // Skip player
-                if (snap.id == playerId) continue;
+                // Skip player, and the horse they ride
+                if (snap.id == playerId || snap.id == riddenId) continue;
 
                 // Skip portals - doors, cellars, stairs should be passable
                 // Gates are only passable when open
