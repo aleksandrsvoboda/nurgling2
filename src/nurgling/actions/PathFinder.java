@@ -331,12 +331,8 @@ public class PathFinder implements Action {
                                 stopHere(gui);
                                 this.begin = me != null ? me.rc : this.begin;
                                 needRestart = true;
-                                System.out.println("[Horse] standing still on a step to " + fmt(targetCoord) + ", re-planning");
                                 break;
                             }
-                            System.out.println("[Horse] step to " + fmt(targetCoord) + " stopped "
-                                    + (me != null ? String.format("%.1f", me.rc.dist(targetCoord)) : "?") + " short at "
-                                    + (me != null ? fmt(me.rc) : "?"));
                         }
                         // Towing: the hauler's cart came off, or a cart is about to (stop before the rope breaks, re-plan around it).
                         if (cartTow != null) {
@@ -415,7 +411,6 @@ public class PathFinder implements Action {
                     dummy = horseDummyOriginal;
                     cartLevel = 0;
                     pfmap = null;
-                    System.out.println("[Horse] no room to stand clear of the spot at " + fmt(end) + ", approaching it as on foot");
                     continue;
                 }
                 if (!plannedZones.isEmpty() && pathExistsWithoutZones())

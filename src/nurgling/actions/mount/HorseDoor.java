@@ -83,17 +83,11 @@ public final class HorseDoor {
             });
             if (crossed.getAsBoolean())
                 return true;
-            System.out.println("[Horse] the door of " + portal.ngob.name + " didn't take, lining up again (try " + (attempt + 2) + ")");
         }
-        System.out.println("[Horse] couldn't get through the door of " + portal.ngob.name + " after " + ATTEMPTS + " tries");
         return false;
     }
 
     private static final int NO_ROOM = -2;
-
-    private static String fmt(Coord2d c) {
-        return String.format("(%.1f,%.1f)", c.x, c.y);
-    }
 
     /**
      * Rides alongside the wall next to the door. Returns the great hall's door mesh to click (the door it lined up
@@ -132,9 +126,6 @@ public final class HorseDoor {
                         best = i;
                 door = doors[best];
                 mesh = meshes[best];
-                System.out.println(String.format("[Horse] great hall at (%.1f,%.1f) angle %.3f hitbox (%.1f,%.1f)-(%.1f,%.1f); doors %s %s %s; chose %d (mesh %d); character at (%.1f,%.1f)",
-                        portal.rc.x, portal.rc.y, portal.a, hb.begin.x, hb.begin.y, hb.end.x, hb.end.y,
-                        fmt(doors[0]), fmt(doors[1]), fmt(doors[2]), best, mesh, me.rc.x, me.rc.y));
             }
         }
         Coord2d along = new Coord2d(-out.y, out.x);
@@ -150,13 +141,8 @@ public final class HorseDoor {
                 continue;
             new PathFinder(runUp).run(gui);
             new GoTo(stand, new StepStuckWatch(gui)).run(gui);
-            Gob p = gui.map.player();
-            System.out.println(String.format("[Horse] lined up beside %s, %.1f off the wall, %.1f along from the door",
-                    portal.ngob.name, p == null ? -1 : Math.abs(p.rc.sub(door).dot(out)),
-                    p == null ? -1 : Math.abs(p.rc.sub(door).dot(along))));
             return mesh;
         }
-        System.out.println("[Horse] no room beside " + portal.ngob.name + " to line up for the door");
         return NO_ROOM;
     }
 }

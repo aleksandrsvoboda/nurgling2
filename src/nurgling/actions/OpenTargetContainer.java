@@ -43,17 +43,10 @@ public class OpenTargetContainer implements Action
                 break;
             if (tryOpen(gui))
             {
-                Gob me = gui.map.player();
-                System.out.println(String.format("[Horse] opened %s %d from %.1f%s", name, gob.id,
-                        me != null ? me.rc.dist(gob.rc) : -1.0, attempt > 0 ? " (after backing off)" : ""));
                 if (cont != null)
                     cont.update();
                 return Results.SUCCESS();
             }
-            Gob me = gui.map.player();
-            System.out.println(String.format("[Horse] couldn't open %s %d (%s) from %.1f%s", name, gob.id,
-                    gob.ngob != null ? gob.ngob.name : "?", me != null ? me.rc.dist(gob.rc) : -1.0,
-                    attempt > 0 ? " (after backing off)" : ""));
         }
         return Results.FAIL();
     }
