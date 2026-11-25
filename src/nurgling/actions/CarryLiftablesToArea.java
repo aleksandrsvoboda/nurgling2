@@ -18,7 +18,8 @@ import java.util.ArrayList;
  * here unchanged: nearest reachable object, lift, place in the target area, step 2 units off it, go
  * back to the source, repeat.
  *
- * <p>With a {@link CartHauler} it fills the cart six at a time and tows it over instead. Any trouble with
+ * <p>With a {@link CartHauler} it fills the cart six at a time and tows it over instead. The cart is parked
+ * while it is loaded and unloaded, and tied only for the trips in between. Any trouble with
  * the cart (a destination it can't get to, a cart that won't take the object, losing it too often) empties
  * whatever is held or loaded into the target, puts the cart back, and finishes by hand.
  *
@@ -42,6 +43,8 @@ public class CarryLiftablesToArea implements Action {
     private final String unreachableMsg;
     private final CartHauler hauler;
     private final boolean flush;
+    /** A parked cart further than this from the next object to load is brought over first (4 tiles). */
+    private static final double BRING_RANGE = 44;
 
     public CarryLiftablesToArea(Source source, NArea target, int spread, String unreachableMsg) {
         this(source, target, spread, unreachableMsg, null, true);
@@ -120,9 +123,18 @@ public class CarryLiftablesToArea implements Action {
                     break;
                 }
                 available.sort(NUtils.d_comp);
-                if (!hauler.load(available.get(0))) {
-                    if (!hauler.gaveUp())
-                        gui.msg(L10n.get("cart.tie_failed"));
+                Gob item = available.get(0);
+                // Load with the cart parked next to the objects: bring it over (tie, tow, untie) when it is
+                // still tied from the trip here, or parked too far from the next object.
+                if (hauler.isTied() || hauler.distanceTo(item.rc) > BRING_RANGE) {
+                    if (!hauler.bringTo(item)) {
+                        gui.msg(L10n.get(hauler.gaveUp() ? "cart.gave_up" : "cart.tie_failed"));
+                        dropCart(gui);
+                        return null;
+                    }
+                }
+                if (!hauler.load(item)) {
+                    gui.msg(L10n.get("cart.load_failed"));
                     dropCart(gui);
                     return null;
                 }

@@ -124,33 +124,54 @@ public class CartHauler {
     }
 
     /**
-     * Lifts an object and puts it into the tied cart. False when nothing ended up in the cart; the
-     * character may then still be holding the object, which the caller carries by hand.
+     * Brings the cart next to an object that is about to be loaded and unties it there: loading happens with
+     * the cart parked, so the character never drags it around the objects (that is how it gets wedged).
+     * Goes back for the cart if it comes off on the way.
+     */
+    public boolean bringTo(Gob target) throws InterruptedException {
+        while (!gaveUp()) {
+            if (!ensureTied())
+                return false;
+            CartTow tow = gui.cartTow;
+            tow.lost = false;
+            new PathFinder(target).run(gui);
+            if (tow.lost || tow.cameOff(gui)) {
+                if (!recover())
+                    return false;
+                continue;
+            }
+            return park();
+        }
+        return false;
+    }
+
+    /** How far the parked cart is from a point; MAX_VALUE when it is out of view. */
+    public double distanceTo(Coord2d p) {
+        Gob c = cart();
+        return (c == null) ? Double.MAX_VALUE : c.rc.dist(p);
+    }
+
+    /** Whether the cart is tied to the character right now. */
+    public boolean isTied() {
+        CartTow tow = gui.cartTow;
+        return tow != null && tow.cartId == cartId;
+    }
+
+    /**
+     * Lifts an object and puts it into the cart, which is parked first if it is still tied. False when
+     * nothing ended up in the cart; the character may then still be holding the object, which the caller
+     * carries by hand.
      */
     public boolean load(Gob item) throws InterruptedException {
-        if (!ensureTied())
+        if (isTied() && !park())
             return false;
-        CartTow tow = gui.cartTow;
-        tow.lost = false;
         new LiftObject(item).run(gui);
-        if (tow.lost || tow.cameOff(gui)) {
-            // recover() puts whatever is held into the (now parked) cart before tying it again.
-            // Nothing held: the lift never happened, so try this object again once the cart is back on.
-            boolean held = Finder.findLiftedbyPlayer() != null;
-            if (!recover())
-                return false;
-            return held || load(item);
-        }
         if (Finder.findLiftedbyPlayer() == null)
             return false;
         Gob c = cart();
         if (c == null)
             return false;
-        if (!new LoadIntoCart(c).run(gui).IsSuccess())
-            return false;
-        if (tow.lost || tow.cameOff(gui))
-            return recover();
-        return true;
+        return new LoadIntoCart(c).run(gui).IsSuccess();
     }
 
     /**
