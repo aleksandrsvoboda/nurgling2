@@ -79,6 +79,22 @@ public class PathFinder implements Action {
     private static final double STALL_BLOCK_AHEAD = 7;
     private static final double STALL_BLOCK_R = MCache.tilesz.x / 2;
 
+    // Cart towing (see nurgling.actions.cart.CartTow). Read at run() start - the hauler's tow, or a towed cart trailing
+    // the character when carts are allowed; null whenever there is neither, and then none of the cart code below runs:
+    // the walk is exactly what it always was.
+    private nurgling.actions.cart.CartTow cartTow = null;
+    // How much cart clearance this run plans with: steps down when a level finds no path (see CartTow.dilate).
+    private int cartLevel = 0;
+    private int cartSnags = 0;
+    private static final int MAX_CART_SNAGS = 3;
+    // Steps whose click was swallowed (the character never moved), re-clicked by re-planning; see CartTow.SnagWatch.stuck().
+    private int cartStuck = 0;
+    private static final int MAX_CART_STUCK = 5;
+    // Re-plans in a row that started where the last one did; see the check at the top of run()'s loop.
+    private int cartNoProgress = 0;
+    private Coord2d cartLastStart = null;
+    private static final int MAX_CART_NO_PROGRESS = 6;
+
     /** A no-walk capsule: every point within r of the segment a-b (a plain circle when a == b); label names it in logs. */
     public static final class AvoidZone {
         public final Coord2d a, b;
@@ -196,9 +212,30 @@ public class PathFinder implements Action {
         abortedByCaller = false;
         zoneReplanTimes.clear();
         stalls = 0;
+        cartTow = nurgling.actions.cart.CartTow.of(gui);
+        if (cartTow == null)
+            cartTow = nurgling.actions.cart.CartTow.detect(gui);
+        cartLevel = 0;
+        cartSnags = 0;
+        cartStuck = 0;
+        cartNoProgress = 0;
+        cartLastStart = null;
         while (true) {
             if (aborted()) {
                 return abortWalk(gui);
+            }
+            // Towing: re-planning again and again without the character getting anywhere is a loop, not a walk.
+            if (cartTow != null) {
+                Gob me = gui.map.player();
+                if (me != null && cartLastStart != null && me.rc.dist(cartLastStart) < 1) {
+                    if (++cartNoProgress > MAX_CART_NO_PROGRESS) {
+                        System.out.println("[Cart] " + cartNoProgress + " re-plans from " + fmt(me.rc) + " without moving - giving up");
+                        return Results.ERROR("Cart walk made no progress");
+                    }
+                } else {
+                    cartNoProgress = 0;
+                }
+                cartLastStart = (me != null) ? me.rc : null;
             }
             LinkedList<Graph.Vertex> path = construct();
 
@@ -209,11 +246,18 @@ public class PathFinder implements Action {
                 for (Graph.Vertex v : path)
                     corners.add(Utils.pfGridToWorld(v.pos));
                 logPlan(corners);
+                // Towing: corners to carry on past before turning, so the trailing cart clears them (see CartTow.planOvershoots).
+                nurgling.actions.cart.CartTow.Overshoots cartOvershoots = (cartTow != null) ? cartTow.planOvershoots(gui, pfmap, begin, corners) : null;
                 int step = 0;
 //                NUtils.getGameUI().msg(Utils.pfGridToWorld(path.getLast().pos).toString());
                 //TODO syntetic points
                 for (Graph.Vertex vert : path) {
+                    if (cartTow != null && cartTow.cameOff(gui))
+                        return cartLost(gui);
                     Coord2d targetCoord = Utils.pfGridToWorld(vert.pos);
+                    // Towing: after an overshoot, this corner moves over so the turn runs parallel (never the last one).
+                    if (cartOvershoots != null && cartOvershoots.shifted.containsKey(step))
+                        targetCoord = cartOvershoots.shifted.get(step);
 
                     if(vert == path.getLast() && isHardMode || dummy!=null) {
                         Coord2d tcord = dummy != null ? dummy.rc : Finder.findGob(target_id).rc;
@@ -229,12 +273,36 @@ public class PathFinder implements Action {
 
                     BooleanSupplier stepAbort = both(abort,
                             (avoidZones != null) ? zoneAbort(gui, corners.subList(step, corners.size())) : null);
+                    nurgling.actions.cart.CartTow.SnagWatch cartSnag = null;
+                    if (cartTow != null) {
+                        cartSnag = cartTow.snagWatcher(gui, cartSnags < MAX_CART_SNAGS);
+                        stepAbort = both(stepAbort, cartSnag);
+                    }
                     GoTo go = (stepAbort != null) ? new GoTo(targetCoord, stepAbort) : new GoTo(targetCoord);
                     step++;
                     if (!go.run(gui).IsSuccess()) {
                         // Asked to stop (paused/cancelled): halt here instead of re-planning and walking on.
                         if (aborted()) {
                             return abortWalk(gui);
+                        }
+                        // Towing: the hauler's cart came off, or a cart is about to (stop before the rope breaks, re-plan around it).
+                        if (cartTow != null) {
+                            if (cartTow.cameOff(gui))
+                                return cartLost(gui);
+                            if (cartSnag != null && cartSnag.fired()) {
+                                cartSnags++;
+                                stopHere(gui);
+                                this.begin = gui.map.player().rc;
+                                needRestart = true;
+                                break;
+                            }
+                            if (cartSnag != null && cartSnag.stuck()) {
+                                if (++cartStuck > MAX_CART_STUCK)
+                                    return Results.ERROR("Character won't move");
+                                this.begin = gui.map.player().rc;
+                                needRestart = true;
+                                break;
+                            }
                         }
                         // A zone moved onto the path: re-plan from here, unless that keeps happening.
                         if (go.aborted() && zoneReplanStorm())
@@ -249,13 +317,45 @@ public class PathFinder implements Action {
                         needRestart = true;
                         break;
                     }
+                    // Towing: carry on past this corner before turning, so the cart has left the gap behind it first.
+                    Coord2d cartOver = (cartOvershoots != null) ? cartOvershoots.past.get(step - 1) : null;
+                    if (cartOver != null) {
+                        System.out.println("[Cart] carrying on past " + fmt(targetCoord) + " to " + fmt(cartOver));
+                        nurgling.actions.cart.CartTow.SnagWatch overSnag = cartTow.snagWatcher(gui, cartSnags < MAX_CART_SNAGS);
+                        if (!new GoTo(cartOver, both(abort, overSnag)).run(gui).IsSuccess()) {
+                            if (aborted())
+                                return abortWalk(gui);
+                            if (cartTow.cameOff(gui))
+                                return cartLost(gui);
+                            if (overSnag.fired()) {
+                                cartSnags++;
+                                stopHere(gui);
+                                this.begin = gui.map.player().rc;
+                                needRestart = true;
+                                break;
+                            }
+                            // Couldn't get past the corner after all (the map said there was room): just turn here.
+                            // Re-planning would plan the same overshoot again and loop.
+                            System.out.println("[Cart] couldn't carry on past " + fmt(targetCoord) + ", turning here");
+                        }
+                    }
                 }
+                if (!needRestart && cartTow != null && cartTow.cameOff(gui))
+                    return cartLost(gui);
                 if (!needRestart)
                     return Results.SUCCESS();
             } else {
                 if (dn) {
 //                    if(start_pos == end_poses.get(0) && NUtils.player().rc.dist(Utils.pfGridToWorld(pfmap.cells[start_pos]))
                     return Results.SUCCESS();
+                }
+                // Towing: no path with this much cart clearance - plan again with less (the last level is a bare character).
+                if (cartTow != null && cartLevel < nurgling.actions.cart.CartTow.CLEARANCE_LEVELS - 1) {
+                    cartLevel++;
+                    pfmap = null;
+                    System.out.println("[Cart] no path at clearance level " + (cartLevel - 1) + " " + fmt(begin) + " -> " + fmt(end)
+                            + ", trying level " + cartLevel);
+                    continue;
                 }
                 if (!plannedZones.isEmpty() && pathExistsWithoutZones())
                     return zoneBlocked(gui, "No safe path around dangerous animals");
@@ -283,6 +383,14 @@ public class PathFinder implements Action {
 
             }
         }
+    }
+
+    /** Hauler tow only: the tow bit cleared mid-walk. Stop rather than walk on alone; the hauler goes back for the cart. */
+    private Results cartLost(NGameUI gui) {
+        cartTow.lost = true;
+        stopHere(gui);
+        System.out.println("[Cart] cart came off while walking " + fmt(begin) + " -> " + fmt(end));
+        return Results.ERROR("Cart came off");
     }
 
     /** Stops the character and ends the walk because {@link #abort} fired. */
@@ -522,6 +630,10 @@ public class PathFinder implements Action {
 //                dn = true; //start == end
                 return null;
             }
+
+            // Towing: grow obstacles by the cart's extra clearance (after the approach cells are marked, so they stay).
+            if (cartTow != null)
+                cartTow.dilate(pfmap, start_pos, end_pos, cartLevel);
 
             if (dca != null)
                 pfmap.setCellArray(dca);

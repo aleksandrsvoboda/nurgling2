@@ -24,6 +24,9 @@ public class UnifiedTilePathfinder {
     private static final int MAX_POPS = 500_000;
     private static final float SQRT2 = (float) Math.sqrt(2);
     private static final float EDGE_COST = 1.5f;
+    // Towing only (see Search.cartCost): an aisle the cart barely fits costs as much as a long way round; a tight spot a little.
+    private static final float CART_TOO_NARROW_COST = 15f;
+    private static final float CART_TIGHT_COST = 1f;
     private static final float INF = Float.POSITIVE_INFINITY;
     private static final int[][] DIRS = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
 
@@ -92,6 +95,8 @@ public class UnifiedTilePathfinder {
         final float[][][] boxes;               // per component: goal bounding boxes {x0, y0, x1, y1} in layout tiles
         final LongHeap heap = new LongHeap();
         int pops = 0;
+        // Towing a cart (see CartTow): narrow tiles cost extra, so the route keeps to where the cart fits when it can.
+        final boolean cart = nurgling.actions.cart.CartTow.planningWithCart();
 
         Search(List<AreaGoalSet> goals) {
             this.goals = goals;
@@ -236,7 +241,7 @@ public class UnifiedTilePathfinder {
                     int nx = x + d[0], ny = y + d[1];
                     float step = (d[0] != 0 && d[1] != 0) ? SQRT2 : 1f;
                     if (nx >= 0 && nx < CHUNK_SIZE && ny >= 0 && ny < CHUNK_SIZE) {
-                        if (AreaGoalSet.isTileWalkable(chunk, nx, ny)) relax(ci, nx, ny, gc + step, node, false);
+                        if (AreaGoalSet.isTileWalkable(chunk, nx, ny)) relax(ci, nx, ny, gc + step + cartCost(chunk, nx, ny), node, false);
                     } else {
                         crossChunk(chunk, nx, ny, gc, node);
                     }
@@ -265,7 +270,43 @@ public class UnifiedTilePathfinder {
             if (ni < 0) return;
             ChunkNavData to = layout.chunks[ni];
             if (!ChunkLayout.walkable(from, to)) return;
-            if (AreaGoalSet.isTileWalkable(to, (int) t[1], (int) t[2])) relax(ni, (int) t[1], (int) t[2], gc + EDGE_COST, node, false);
+            if (AreaGoalSet.isTileWalkable(to, (int) t[1], (int) t[2])) relax(ni, (int) t[1], (int) t[2], gc + EDGE_COST + cartCost(to, (int) t[1], (int) t[2]), node, false);
+        }
+
+        /**
+         * 0 unless towing. Then by how much room the tile has for a cart, judged from the cells around its 2x2:
+         * blocked on two opposite sides within one cell (an aisle between chest rows) is too narrow
+         * ({@link #CART_TOO_NARROW_COST}: a long way round wins, but it is still usable when nothing else is);
+         * blocked on one side only, or in the tile itself (a gate post, a wall alongside) is tight
+         * ({@link #CART_TIGHT_COST}); nothing blocked around it is open (free).
+         */
+        private float cartCost(ChunkNavData chunk, int tx, int ty) {
+            if (!cart)
+                return 0f;
+            int cx = tx * ChunkNavConfig.CELLS_PER_TILE, cy = ty * ChunkNavConfig.CELLS_PER_TILE;
+            int lo = -1, hi = ChunkNavConfig.CELLS_PER_TILE;
+            boolean left = false, right = false, top = false, bottom = false, inside = false;
+            for (int d = lo; d <= hi; d++) {
+                left |= blocked(chunk, cx + lo, cy + d);
+                right |= blocked(chunk, cx + hi, cy + d);
+                top |= blocked(chunk, cx + d, cy + lo);
+                bottom |= blocked(chunk, cx + d, cy + hi);
+            }
+            for (int x = 0; x < ChunkNavConfig.CELLS_PER_TILE; x++)
+                for (int y = 0; y < ChunkNavConfig.CELLS_PER_TILE; y++)
+                    inside |= blocked(chunk, cx + x, cy + y);
+            if ((left && right) || (top && bottom))
+                return CART_TOO_NARROW_COST;
+            if (left || right || top || bottom || inside)
+                return CART_TIGHT_COST;
+            return 0f;
+        }
+
+        /** A cell that isn't plain walkable ground; cells off this chunk's edge count as open. */
+        private boolean blocked(ChunkNavData chunk, int x, int y) {
+            if (x < 0 || y < 0 || x >= ChunkNavConfig.CELLS_PER_EDGE || y >= ChunkNavConfig.CELLS_PER_EDGE)
+                return false;
+            return chunk.walkability[x][y] != 0;
         }
 
         private PortalEdge[] portalsOf(int ci) {

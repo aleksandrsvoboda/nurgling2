@@ -5,6 +5,8 @@ import haven.res.lib.tree.TreeScale;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.actions.cart.CartHauler;
+import nurgling.actions.cart.SelectCart;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NChopperProp;
@@ -55,6 +57,19 @@ public class Chopper implements Action {
         }
 
         String treeArea = context.createArea("Please select area for deforestation", Resource.loadsimg("baubles/chopperArea"));
+
+        Gob cart = (prop.carryLogsToCarrierOut && carrierOutArea != null) ? SelectCart.ask(gui) : null;
+        CartHauler hauler = (cart != null) ? new CartHauler(gui, cart) : null;
+        try {
+            return chop(gui, prop, context, carrierOutArea, treeArea, hauler);
+        } finally {
+            if (hauler != null)
+                hauler.detach();
+        }
+    }
+
+    private Results chop(NGameUI gui, NChopperProp prop, NContext context, NArea carrierOutArea, String treeArea,
+                         CartHauler hauler) throws InterruptedException {
 
         NAlias pattern = prop.stumps ? new NAlias(new ArrayList<String>(List.of("gfx/terobjs/tree")),new ArrayList<String>(Arrays.asList("log","oldtrunk"))) :
                 new NAlias(new ArrayList<String>(List.of("gfx/terobjs/tree")),new ArrayList<String>(Arrays.asList("log", "oldtrunk", "stump")));
@@ -150,20 +165,26 @@ public class Chopper implements Action {
             }
 
             if (prop.carryLogsToCarrierOut && carrierOutArea != null) {
-                carryLogsFromArea(gui, context, treeArea, carrierOutArea);
+                Results carried = carryLogsFromArea(gui, context, treeArea, carrierOutArea, hauler, false);
+                if (hauler != null && !carried.IsSuccess())
+                    return carried;
             }
+        }
+        // With a cart: haul the last part-load and put the cart back where it was clicked.
+        if (hauler != null) {
+            Results carried = carryLogsFromArea(gui, context, treeArea, carrierOutArea, hauler, true);
+            if (!carried.IsSuccess())
+                return carried;
         }
         new RunToSafe().run(gui);
         return Results.SUCCESS();
     }
 
-    // Sweeps all log gobs from the deforestation area to a target area, one trip per log
-    // (player can only lift one liftable at a time). Mirrors the lift/nav/place/step-away
-    // pattern in TransferLiftable. Kept inline for now; promote to a shared Action class
-    // (e.g. CarryLiftablesToArea) when a second non-Chopper caller appears, and migrate
-    // TransferLiftable to use it at the same time to avoid duplicate sweep loops.
-    private void carryLogsFromArea(NGameUI gui, NContext context,
-                                   String sourceAreaId, NArea targetArea) throws InterruptedException {
+    // Sweeps all log gobs from the deforestation area to the target area: one trip per log by hand, or six at a
+    // time when a cart was clicked at the start (see CarryLiftablesToArea). flush=false keeps a partly filled cart
+    // parked here for the next tree.
+    private Results carryLogsFromArea(NGameUI gui, NContext context, String sourceAreaId, NArea targetArea,
+                                      CartHauler hauler, boolean flush) throws InterruptedException {
         // Match all tree-family gobs, then post-filter to logs only. NAlias keys are OR
         // and substring-only, so prefix+suffix (starts with "gfx/terobjs/trees" AND ends
         // with "log") cannot be expressed as a single alias.
@@ -171,36 +192,24 @@ public class Chopper implements Action {
                 new ArrayList<>(List.of("gfx/terobjs/trees")),
                 new ArrayList<>(Arrays.asList("oldtrunk", "stump")));
 
-        while (true) {
-            ArrayList<Gob> candidates = context.getGobs(sourceAreaId, treeFamilyAlias);
-            ArrayList<Gob> logs = new ArrayList<>();
-            for (Gob g : candidates) {
-                if (g.ngob != null && g.ngob.name != null && g.ngob.name.endsWith("log")) {
-                    logs.add(g);
+        CarryLiftablesToArea.Source logs = new CarryLiftablesToArea.Source() {
+            @Override
+            public ArrayList<Gob> candidates() throws InterruptedException {
+                ArrayList<Gob> found = new ArrayList<>();
+                for (Gob g : context.getGobs(sourceAreaId, treeFamilyAlias)) {
+                    if (g.ngob != null && g.ngob.name != null && g.ngob.name.endsWith("log")) {
+                        found.add(g);
+                    }
                 }
+                return found;
             }
-            if (logs.isEmpty()) break;
 
-            ArrayList<Gob> available = new ArrayList<>();
-            for (Gob g : logs) {
-                if (PathFinder.isAvailable(g)) available.add(g);
+            @Override
+            public void goBack() throws InterruptedException {
+                context.navigateToAreaIfNeeded(sourceAreaId);
             }
-            if (available.isEmpty()) {
-                NUtils.getGameUI().msg("Can't reach any logs in chopping area, skipping carry.");
-                break;
-            }
-            available.sort(NUtils.d_comp);
-            Gob log = available.get(0);
-
-            new LiftObject(log).run(gui);
-            // FindPlaceAndAction walks onto targetArea first (NArea supplied),
-            // loading the whole zone before choosing a drop cell.
-            new FindPlaceAndAction(null, targetArea).run(gui);
-
-            Coord2d shift = log.rc.sub(NUtils.player().rc).norm().mul(2);
-            new GoTo(NUtils.player().rc.sub(shift)).run(gui);
-
-            context.navigateToAreaIfNeeded(sourceAreaId);
-        }
+        };
+        return new CarryLiftablesToArea(logs, targetArea, 0,
+                "Can't reach any logs in chopping area, skipping carry.", hauler, flush).run(gui);
     }
 }

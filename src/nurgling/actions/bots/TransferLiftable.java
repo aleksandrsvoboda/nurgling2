@@ -4,6 +4,8 @@ import haven.*;
 import nurgling.NGameUI;
 import nurgling.NUtils;
 import nurgling.actions.*;
+import nurgling.actions.cart.CartHauler;
+import nurgling.actions.cart.SelectCart;
 import nurgling.areas.NArea;
 import nurgling.areas.NContext;
 import nurgling.conf.NCarrierProp;
@@ -72,38 +74,28 @@ public class TransferLiftable implements Action
         }
 
 
-        ArrayList<Gob> items;
-        while (!(items = Finder.findGobs(inarea, new NAlias(prop.object))).isEmpty())
-        {
-            ArrayList<Gob> availableItems = new ArrayList<>();
-            for (Gob currGob : items)
-            {
-                if (PathFinder.isAvailable(currGob))
-                    availableItems.add(currGob);
-            }
-            if (availableItems.isEmpty())
-            {
-                NUtils.getGameUI().msg("Can't reach any " + prop.object + " in current area, skipping...");
-                break;
+        final NArea source = inarea;
+        final NAlias alias = new NAlias(prop.object);
+        CarryLiftablesToArea.Source from = new CarryLiftablesToArea.Source() {
+            @Override
+            public ArrayList<Gob> candidates() throws InterruptedException {
+                return Finder.findGobs(source, alias);
             }
 
-            availableItems.sort(NUtils.d_comp);
-            Gob item = availableItems.get(0);
+            @Override
+            public void goBack() throws InterruptedException {
+                NUtils.navigateToArea(source);
+            }
+        };
+        String unreachable = "Can't reach any " + prop.object + " in current area, skipping...";
 
-            // Lift the item
-            new LiftObject(item).run(gui);
-
-            // Move to output area and place the item. FindPlaceAndAction walks
-            // onto the area first (it has the NArea) so the whole zone is loaded
-            // before a drop cell is chosen.
-            new FindPlaceAndAction(null, carrierOutArea, prop.spread).run(gui);
-
-            // Move away from the placed item
-            Coord2d shift = item.rc.sub(NUtils.player().rc).norm().mul(2);
-            new GoTo(NUtils.player().rc.sub(shift)).run(gui);
-            NUtils.navigateToArea(inarea);
+        Gob cart = SelectCart.ask(gui);
+        CartHauler hauler = (cart != null) ? new CartHauler(gui, cart) : null;
+        try {
+            return new CarryLiftablesToArea(from, carrierOutArea, prop.spread, unreachable, hauler, true).run(gui);
+        } finally {
+            if (hauler != null)
+                hauler.detach();
         }
-
-        return Results.SUCCESS();
     }
 }

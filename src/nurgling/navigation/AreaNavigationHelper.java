@@ -42,6 +42,14 @@ public class AreaNavigationHelper {
         boolean navOk = nav != null && nav.isInitialized();
         ChunkPath path = navOk ? nav.planToArea(area) : null;
 
+        // Towing a cart: always follow the chunk route, whose tiles are scored for room (UnifiedTilePathfinder.cartCost),
+        // instead of one local walk that takes the shortest way through any gap, however narrow.
+        if (path != null && isLocal(path, gui) && nurgling.actions.cart.CartTow.planningWithCart()) {
+            if (!ensurePresence) return true;
+            System.out.println("[Cart] area " + area.name + " is local, following the chunk route for the cart");
+            return nav.navigateWithPath(path, area, gui).IsSuccess();
+        }
+
         if (path != null && isLocal(path, gui)) {
             if (!ensurePresence) return true;
             Coord2d goal = goalWorld(path, gui);

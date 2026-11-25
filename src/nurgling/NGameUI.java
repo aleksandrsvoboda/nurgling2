@@ -24,6 +24,8 @@ import static haven.Inventory.invsq;
 public class NGameUI extends GameUI
 {
     public boolean nomadMod = false;
+    /** Set only by CartHauler while this session's character has a cart tied; null otherwise. */
+    public volatile nurgling.actions.cart.CartTow cartTow = null;
     public NBotsMenu botsMenu;
     public NAlarmWdg alarmWdg;
     public StarvationAlertWidget starvationAlertWidget;

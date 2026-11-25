@@ -126,7 +126,7 @@ public class NConfig
         riverexplorerprop,
         questNotified, lpassistent, fishingsettings, boatfishingsettings,
         serverNode, serverUser, serverPass, postgresMaxConnections, ndbenable, shareHearthSecret, autoHearthSecret, sharePosition, showPeerPositions, todoNotify, dbGrantRole, dbStatsOverlay, mapShareMarkers, harvestautorefill, cleanupQContainers, autoEquipTravellersSacks, qualityGrindSeedingPatter, postgres, sqlite, dbFilePath, simplecrops,
-        temsmarktime, exploredAreaEnable, chunkNavOverlay, minimapTogglesShown, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, gridDiagonals, gridDiagonalColor, useGlobalPf, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
+        temsmarktime, exploredAreaEnable, chunkNavOverlay, minimapTogglesShown, player_box, player_fov, temsmarkdist, tempmark, tempmarkIgnoreDist, gridbox, gridWallColor, gridDiagonals, gridDiagonalColor, useGlobalPf, allowCarts, useHFinGlobalPF, boxFillColor, boxEdgeColor, boxLineWidth, ropeAfterFeeding, ropeAfterTaiming, eatingConf, deersprop,dropConf, printpfmap, fonts,
         areaRankPresets,  // Map of areaId -> Map of animalType -> presetName
         shortCupboards,
         shortPalisades,
@@ -452,6 +452,7 @@ public class NConfig
         conf.put(Key.autoEquipTravellersSacks, false);
         conf.put(Key.qualityGrindSeedingPatter, "4x1");
         conf.put(Key.useGlobalPf, false);
+        conf.put(Key.allowCarts, false);
         conf.put(Key.useHFinGlobalPF, false);
         conf.put(Key.sqlite, false);
         conf.put(Key.postgres, false);
@@ -2023,7 +2024,20 @@ public class NConfig
             String jsonString = new String(Files.readAllBytes(Paths.get(path)), "UTF-8");
 
             JSONObject jsonObject = new JSONObject(jsonString);
-            botmod = new NCore.BotmodSettings((String) jsonObject.get("user"), (String) jsonObject.get("password"), (String) jsonObject.get("character"), jsonObject.getInt("scenarioId"));
+            // No password: log in with the token saved for this user. No scenario: a "cartTest" may say what to run instead.
+            botmod = new NCore.BotmodSettings((String) jsonObject.get("user"), jsonObject.optString("password", null), (String) jsonObject.get("character"), jsonObject.has("scenarioId") ? jsonObject.getInt("scenarioId") : null);
+            if (jsonObject.has("cartTest")) {
+                JSONObject ct = jsonObject.getJSONObject("cartTest");
+                botmod.cartTest = true;
+                botmod.cartTestFrom = ct.optString("from", null);
+                botmod.cartTestTo = ct.optString("to", null);
+                botmod.cartTestLaps = ct.optInt("laps", 2);
+                botmod.cartTestRandom = ct.optBoolean("random", false);
+                botmod.cartTestMinutes = ct.optInt("minutes", 20);
+                botmod.cartTestMaxHops = ct.optInt("maxHops", 4);
+                botmod.cartTestSeed = ct.optLong("seed", 1);
+                botmod.cartTestStayOpen = ct.optBoolean("stayOpen", false);
+            }
 
             // Set stack trace file if provided (for autorunner debugging)
             if (jsonObject.has("stackTraceFile")) {
