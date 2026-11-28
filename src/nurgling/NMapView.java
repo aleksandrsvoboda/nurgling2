@@ -182,6 +182,8 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
     long lastTooltipUpdate = 0;
     final long tooltipThrottleTime = 100; // milliseconds for throttling
     TexI oldttip = null;
+    /** Lays out and draws the cheese rack panels so they don't cover each other; also their hover tooltips. */
+    public final nurgling.overlays.NCheeseRackPanels cheeseRackPanels = new nurgling.overlays.NCheeseRackPanels();
 
     // Cached foundries for inspect tooltip
     private static Text.Foundry inspectLabelFoundry = null;
@@ -383,6 +385,7 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
 
 
         super.draw(g);
+        cheeseRackPanels.draw(g);
         drawphoto(g);
         synchronized (dummys) {
             for (Gob dummy : dummys.values()) {
@@ -1109,6 +1112,9 @@ public class NMapView extends MapView implements Widget.CursorQuery.Handler
             }
             return (oldttip = new TexI((ItemInfo.catimgs(0, imgs.toArray(new BufferedImage[0])))));
         }
+        TexI rack = cheeseRackPanels.tooltipAt(c);
+        if (rack != null)
+            return (oldttip = rack);
         oldttip = null;
         return (super.tooltip(c, prev));
     }

@@ -54,7 +54,7 @@ public class NObjectTexLabel extends Sprite implements RenderTree.Node, PView.Re
      * per-call temporaries: every label in view projects each frame, and
      * those were about half of all the client's allocation. */
     private final float[] cv = new float[4];
-    private Coord project(Pipe state, Coord sz) {
+    protected Coord project(Pipe state, Coord sz) {
         float[] v = cv;
         v[0] = pos.x; v[1] = pos.y; v[2] = pos.z; v[3] = 1.0f;
         Location.Chain s_loc = state.get(Homo3D.loc);

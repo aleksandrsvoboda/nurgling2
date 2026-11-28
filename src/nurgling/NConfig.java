@@ -46,6 +46,7 @@ public class NConfig
         toolbelts,
         resizeprop,
         showCropStage,
+        showCheeseRackTrays,
         nightVision,
         nightVisionBrightness,
         showBB,
@@ -370,6 +371,7 @@ public class NConfig
         conf.put(Key.is_real_time, true);
         conf.put(Key.numbelts, 3);
         conf.put(Key.showCropStage, false);
+        conf.put(Key.showCheeseRackTrays, true);
         conf.put(Key.nightVision, false);
         conf.put(Key.nightVisionBrightness, 0.65);
         conf.put(Key.showBB, false);

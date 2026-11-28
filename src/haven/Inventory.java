@@ -81,7 +81,8 @@ public class Inventory extends Widget implements DTarget {
 		/* Prefer the gob the latest map right-click was on: bots that open containers with a raw
 		 * click never update LastActions, which then names whatever was last clicked by hand. */
 		Gob clicked = ui.core.takeClickedGob(g -> g.ngob != null && g.ngob.name != null
-				&& nurgling.areas.NContext.contcaps.containsKey(g.ngob.name));
+				&& (nurgling.areas.NContext.contcaps.containsKey(g.ngob.name)
+				    || g.ngob.name.equals(nurgling.cheese.CheeseRackShelves.RACK_RES)));
 		if(clicked != null || ui.core.getLastActions()!=null) {
 			ni.parentGob = (clicked != null) ? clicked : ui.core.getLastActions().gob;
 			if((Boolean) NConfig.get(NConfig.Key.ndbenable) && ui.core.databaseManager != null && ui.core.databaseManager.isReady()) {

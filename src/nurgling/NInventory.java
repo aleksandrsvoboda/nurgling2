@@ -51,6 +51,8 @@ public class NInventory extends Inventory
     private Widget stackSortBtnRef;
     short[][] oldinv = null;
     public Gob parentGob = null;
+    /** Seconds until this window next reads cheese names, when it belongs to a cheese rack. */
+    private double cheeseRackLearnIn = 0;
     long lastUpdate = 0;
     
     // Track pending item removals from cache (for items consumed while container is open)
@@ -549,6 +551,11 @@ public class NInventory extends Inventory
         if(NUtils.getGameUI() == null)
             return;
         super.tick(dt);
+        if ((cheeseRackLearnIn -= dt) <= 0) {
+            cheeseRackLearnIn = 1.0;
+            if (ui != null && ui.core != null && nurgling.cheese.CheeseRackReader.isRackInventory(this))
+                nurgling.cheese.CheeseRackReader.learn(this, ui.core.cheeseRacks(), System.currentTimeMillis());
+        }
         if((Boolean)NConfig.get(NConfig.Key.showInventoryNums)) {
             short[][] newInv = containerMatrix();
             boolean isDiffrent = false;
