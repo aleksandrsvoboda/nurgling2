@@ -1317,7 +1317,7 @@ public class VSpec {
 
     static {
         ArrayList<JSONObject> spices = new ArrayList<>();
-        spices.add(new JSONObject("{\"static\":\"gfx/invobjs/pepperdrupedried\",\"name\":\"Black Pepper\"}"));
+        spices.add(new JSONObject("{\"static\":\"gfx/invobjs/pepper\",\"name\":\"Black Pepper\"}"));
         spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/ambergris\",\"name\":\"Ambergris\"}"));
         spices.add(new JSONObject("{\"static\":\"gfx/invobjs/propolis\",\"name\":\"Propolis\"}"));
         spices.add(new JSONObject("{\"static\":\"gfx/invobjs/herbs/kvann\",\"name\":\"Kvann\"}"));
