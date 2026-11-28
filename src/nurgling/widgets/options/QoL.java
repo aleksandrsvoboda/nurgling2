@@ -13,6 +13,7 @@ import nurgling.widgets.nsettings.Panel;
 
 public class QoL extends Panel {
     private CheckBox showCropStage;
+    private CheckBox showCheeseRackTrays;
     private CheckBox simpleCrops;
     private CheckBox nightVision;
     private HSlider nightVisionBrightnessSlider;
@@ -146,6 +147,8 @@ public class QoL extends Panel {
             }
         }, leftPrev.pos("bl").adds(0, 10));
         leftPrev = showCropStage = leftColumn.add(new CheckBox(L10n.get("qol.show_crop_stage")), leftPrev.pos("bl").adds(0, 10));
+        leftPrev = showCheeseRackTrays = leftColumn.add(new CheckBox(L10n.get("qol.show_cheese_rack_trays")), leftPrev.pos("bl").adds(0, 5));
+        showCheeseRackTrays.settip(L10n.get("qol.show_cheese_rack_trays.tip"));
         leftPrev = simpleCrops = leftColumn.add(new CheckBox(L10n.get("qol.simple_crops")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = nightVision = leftColumn.add(new CheckBox(L10n.get("qol.night_vision")), leftPrev.pos("bl").adds(0, 5));
         leftPrev = leftColumn.add(new Label(L10n.get("qol.night_vision_brightness")), leftPrev.pos("bl").adds(10, 3));
@@ -432,6 +435,7 @@ public class QoL extends Panel {
             scrollport.cont.update();
         }
         showCropStage.a = getBool(NConfig.Key.showCropStage);
+        showCheeseRackTrays.a = getBool(NConfig.Key.showCheeseRackTrays);
         simpleCrops.a = getBool(NConfig.Key.simplecrops);
         nightVision.a = getBool(NConfig.Key.nightVision);
         
@@ -585,6 +589,7 @@ public class QoL extends Panel {
         if(disableEasterEggs.visible)
             NConfig.set(NConfig.Key.disableEasterEggs, disableEasterEggs.a);
         NConfig.set(NConfig.Key.showCropStage, showCropStage.a);
+        NConfig.set(NConfig.Key.showCheeseRackTrays, showCheeseRackTrays.a);
         NConfig.set(NConfig.Key.simplecrops, simpleCrops.a);
         NConfig.set(NConfig.Key.nightVision, nightVision.a);
         NConfig.set(NConfig.Key.nightVisionBrightness, nightVisionBrightnessSlider.val / 100.0);

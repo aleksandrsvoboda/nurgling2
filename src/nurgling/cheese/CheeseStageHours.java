@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.json.JSONObject;
+
 /**
  * Real-life hours a tray spends on a rack for each cheese stage, keyed by the cheese the stage
  * produces and the place it ages in (same name/place pairs as {@link CheeseBranch}).
@@ -73,5 +75,19 @@ public class CheeseStageHours {
                 return v;
         }
         return defaultHours(cheese, place);
+    }
+
+    /** The stage-hour overrides in a saved cheese rack calculator config (its "overrides" object). */
+    public static Map<String, Integer> overridesFrom(JSONObject calculator) {
+        Map<String, Integer> out = new HashMap<>();
+        JSONObject ov = calculator == null ? null : calculator.optJSONObject("overrides");
+        if (ov != null) {
+            for (String k : ov.keySet()) {
+                int v = ov.optInt(k, 0);
+                if (v > 0)
+                    out.put(k, v);
+            }
+        }
+        return out;
     }
 }

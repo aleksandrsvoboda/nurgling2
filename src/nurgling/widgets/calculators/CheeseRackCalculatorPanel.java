@@ -474,13 +474,6 @@ public class CheeseRackCalculatorPanel extends Widget {
                 rows.add(new RowState(r.getString("cheese"), r.optString("trays", "1"), r.optString("every", "24")));
             }
         }
-        JSONObject ov = o.optJSONObject("overrides");
-        if (ov != null) {
-            for (String k : ov.keySet()) {
-                int v = ov.optInt(k, 0);
-                if (v > 0)
-                    overrides.put(k, v);
-            }
-        }
+        overrides.putAll(CheeseStageHours.overridesFrom(o));
     }
 }

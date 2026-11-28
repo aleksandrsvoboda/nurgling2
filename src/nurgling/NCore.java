@@ -342,6 +342,25 @@ public class NCore extends Widget
 
     public NConfig config;
 
+    private final Object cheeseRacksLock = new Object();
+    private nurgling.cheese.CheeseRackMemory cheeseRacks = null;
+
+    /** This session's memory of cheese rack shelves; reopened when the profile's file path changes. */
+    public nurgling.cheese.CheeseRackMemory cheeseRacks()
+    {
+        String path = NConfig.getGlobalInstance().getProfileAwarePath(nurgling.cheese.CheeseRackMemory.FILE_NAME);
+        synchronized (cheeseRacksLock)
+        {
+            if (cheeseRacks == null || !cheeseRacks.path().equals(path))
+            {
+                if (cheeseRacks != null)
+                    cheeseRacks.saveIfDue(System.currentTimeMillis(), true);
+                cheeseRacks = new nurgling.cheese.CheeseRackMemory(path);
+            }
+            return cheeseRacks;
+        }
+    }
+
     public NCore()
     {
         config = MainFrame.config;

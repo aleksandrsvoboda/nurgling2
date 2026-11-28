@@ -921,6 +921,8 @@ public class NGob
                         if (name.contains("gfx/terobjs/dframe") || name.contains("gfx/terobjs/cheeserack"))
                         {
                             customMask = true;
+                            if (name.equals(nurgling.cheese.CheeseRackShelves.RACK_RES))
+                                parent.addcustomol(new nurgling.overlays.NCheeseRackOverlay(parent));
                         } else if (name.contains("gfx/terobjs/barrel"))
                         {
                             customMask = true;
