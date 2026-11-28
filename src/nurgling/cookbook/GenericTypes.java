@@ -33,7 +33,6 @@ public final class GenericTypes {
         Map.entry("mammoth meat", List.of("Raw Mammoth")),
         Map.entry("goat bollock", List.of("Chevon Bollock")),
         Map.entry("reindeer bollock", List.of("Tame Reindeer Bollock")),
-        Map.entry("black pepper", List.of("Dried Pepper Drupe")),
         Map.entry("almond", List.of("Almonds")),
         /* The tooltips of the resources in ICONS. */
         Map.entry("birdcherries", List.of("Bird Cherries")),
@@ -181,12 +180,6 @@ public final class GenericTypes {
     private static final Map<String, String> RENAMES = Map.of(
         "Laurel Leaf", "Laurel Leaves");
 
-    /** Members the wiki lists that the game does not take, by type. */
-    private static final Map<String, List<String>> EXCLUDED = Map.of(
-        /* A block of wood, not a mushroom. */
-        "Edible Mushroom", List.of("Block of Trombone Chantrelle"),
-        "Any Mushroom", List.of("Block of Trombone Chantrelle"));
-
     /** Members the wiki lacks, by type. */
     private static final Map<String, List<String>> EXTRA = Map.of(
         "Raw Meat", List.of("Raw Wildhorse"),
@@ -228,8 +221,6 @@ public final class GenericTypes {
             for(String type : same)
                 members.put(type, new ArrayList<>(all));
         }
-        for(Map.Entry<String, List<String>> e : EXCLUDED.entrySet())
-            members.getOrDefault(e.getKey(), new ArrayList<>()).removeAll(e.getValue());
         for(Map.Entry<String, List<String>> e : UNIONS.entrySet()) {
             Set<String> all = new LinkedHashSet<>();
             for(String type : e.getValue())
